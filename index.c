@@ -7,6 +7,8 @@
 #endif
 #include <fcntl.h>
 #include <stdio.h>
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #define __STDC_LIMIT_MACROS
 #include "kthread.h"
 #include "bseq.h"
@@ -14,6 +16,10 @@
 #include "mmpriv.h"
 #include "kvec.h"
 #include "khash.h"
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <limits>
 
 #define idx_hash(a) ((a)>>1)
 #define idx_eq(a, b) ((a)>>1 == (b)>>1)
@@ -49,6 +55,7 @@ mm_idx_t *mm_idx_init(int w, int k, int b, int flag)
 	mi = (mm_idx_t*)calloc(1, sizeof(mm_idx_t));
 	mi->w = w, mi->k = k, mi->b = b, mi->flag = flag;
 	mi->B = (mm_idx_bucket_t*)calloc(1<<b, sizeof(mm_idx_bucket_t));
+	mi->downWeightedKmers.reset(); //set all bits to 0
 	if (!(mm_dbg_flag & 1)) mi->km = km_init();
 	return mi;
 }
@@ -268,6 +275,20 @@ typedef struct {
 	mm128_v a;
 } step_t;
 
+/**
+ * @brief		64-bit finalizer from MurmurHash3
+ * @NOTE		should be kept same as the one used for computing minimizers (sketch.c)
+ */
+static inline uint64_t hash64(uint64_t key, uint64_t mask)
+{
+	key ^= key >> 33;
+	key *= 0xff51afd7ed558ccd;
+	key ^= key >> 33;
+	key *= 0xc4ceb9fe1a85ec53;
+	key ^= key >> 33;
+	return key & mask;
+}
+
 static void mm_idx_add(mm_idx_t *mi, int n, const mm128_t *a)
 {
 	int i, mask = (1<<mi->b) - 1;
@@ -335,7 +356,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		for (i = 0; i < s->n_seq; ++i) {
 			mm_bseq1_t *t = &s->seq[i];
 			if (t->l_seq > 0)
-				mm_sketch(0, t->seq, t->l_seq, p->mi->w, p->mi->k, t->rid, p->mi->flag&MM_I_HPC, &s->a);
+				mm_sketch(0, t->seq, t->l_seq, p->mi->w, p->mi->k, t->rid, p->mi->flag&MM_I_HPC, &s->a, p->mi);
 			else if (mm_verbose >= 2)
 				fprintf(stderr, "[WARNING] the length database sequence '%s' is 0\n", t->name);
 			free(t->seq); free(t->name);
@@ -350,7 +371,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
     return 0;
 }
 
-mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini_batch_size, int n_threads, uint64_t batch_size)
+mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini_batch_size, int n_threads, uint64_t batch_size, const char *kmer_freq_filename)
 {
 	pipeline_t pl;
 	if (fp == 0 || mm_bseq_eof(fp)) return 0;
@@ -359,6 +380,27 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 	pl.batch_size = batch_size;
 	pl.fp = fp;
 	pl.mi = mm_idx_init(w, k, b, flag);
+
+	//Read kmer frequency file
+	/*------------------------*/
+	std::ifstream idt (kmer_freq_filename);
+
+	fprintf(stderr, "[M::%s::%.3f*%.2f] reading downweighted kmers\n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
+
+	uint64_t kmer;
+	uint64_t cnt = 0;
+	while(idt >> kmer)
+	{
+		cnt++;
+		pl.mi->downWeightedKmers[hash64(kmer, (1ULL<<(26)) - 1)] = 1;
+	}
+
+	assert(cnt <= 500000);	//currently we expect to keep very few kmers
+							//TODO: implement a proper bloom filter based solution or use exact std::unordered_set
+
+
+	fprintf(stderr, "[M::%s::%.3f*%.2f] collected downweighted kmers, no. of kmers read=%" PRIu64", marked %" PRIu64" bits\n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), cnt, pl.mi->downWeightedKmers.count());
+	/*------------------------*/
 
 	kt_pipeline(n_threads < 3? n_threads : 3, worker_pipeline, &pl, 3);
 	if (mm_verbose >= 3)
@@ -377,7 +419,7 @@ mm_idx_t *mm_idx_build(const char *fn, int w, int k, int flag, int n_threads) //
 	mm_idx_t *mi;
 	fp = mm_bseq_open(fn);
 	if (fp == 0) return 0;
-	mi = mm_idx_gen(fp, w, k, 14, flag, 1<<18, n_threads, UINT64_MAX);
+	mi = mm_idx_gen(fp, w, k, 14, flag, 1<<18, n_threads, UINT64_MAX, NULL);
 	mm_bseq_close(fp);
 	return mi;
 }
@@ -422,7 +464,7 @@ mm_idx_t *mm_idx_str(int w, int k, int is_hpc, int bucket_bits, int n, const cha
 		sum_len += p->len;
 		if (p->len > 0) {
 			a.n = 0;
-			mm_sketch(0, s, p->len, w, k, i, is_hpc, &a);
+			mm_sketch(0, s, p->len, w, k, i, is_hpc, &a, mi);
 			mm_idx_add(mi, a.n, a.a);
 		}
 	}
@@ -580,7 +622,7 @@ void mm_idx_reader_close(mm_idx_reader_t *r)
 	free(r);
 }
 
-mm_idx_t *mm_idx_reader_read(mm_idx_reader_t *r, int n_threads)
+mm_idx_t *mm_idx_reader_read(mm_idx_reader_t *r, int n_threads, const char *kmer_freq_filename)
 {
 	mm_idx_t *mi;
 	if (r->is_idx) {
@@ -588,7 +630,7 @@ mm_idx_t *mm_idx_reader_read(mm_idx_reader_t *r, int n_threads)
 		if (mi && mm_verbose >= 2 && (mi->k != r->opt.k || mi->w != r->opt.w || (mi->flag&MM_I_HPC) != (r->opt.flag&MM_I_HPC)))
 			fprintf(stderr, "[WARNING]\033[1;31m Indexing parameters (-k, -w or -H) overridden by parameters used in the prebuilt index.\033[0m\n");
 	} else
-		mi = mm_idx_gen(r->fp.seq, r->opt.w, r->opt.k, r->opt.bucket_bits, r->opt.flag, r->opt.mini_batch_size, n_threads, r->opt.batch_size);
+		mi = mm_idx_gen(r->fp.seq, r->opt.w, r->opt.k, r->opt.bucket_bits, r->opt.flag, r->opt.mini_batch_size, n_threads, r->opt.batch_size, kmer_freq_filename);
 	if (mi) {
 		if (r->fp_out) mm_idx_dump(r->fp_out, mi);
 		mi->index = r->n_parts++;

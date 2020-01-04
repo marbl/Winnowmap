@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <bitset>
 
 #define MM_F_NO_DIAG       0x001 // no exact diagonal hit
 #define MM_F_NO_DUAL       0x002 // skip pairs where query name is lexicographically larger than target name
@@ -68,6 +69,7 @@ typedef struct {
 	uint32_t *S;               // 4-bit packed sequence
 	struct mm_idx_bucket_s *B; // index (hidden)
 	struct mm_idx_intv_s *I;   // intervals (hidden)
+	std::bitset<67108864> downWeightedKmers;    //1 bit bloom filter (size = 2^26)  
 	void *km, *h;
 } mm_idx_t;
 
@@ -146,6 +148,7 @@ typedef struct {
 	int mini_batch_size; // size of a batch of query bases to process in parallel
 	int64_t max_sw_mat;
 
+	const char *kmer_freq_filename; //file name containing k-mer frequencies
 	const char *split_prefix;
 } mm_mapopt_t;
 
@@ -220,7 +223,7 @@ mm_idx_reader_t *mm_idx_reader_open(const char *fn, const mm_idxopt_t *opt, cons
  *
  * @return an index on success; NULL if reaching the end of the input file
  */
-mm_idx_t *mm_idx_reader_read(mm_idx_reader_t *r, int n_threads);
+mm_idx_t *mm_idx_reader_read(mm_idx_reader_t *r, int n_threads, const char *kmer_freq_filename);
 
 /**
  * Destroy/deallocate an index reader

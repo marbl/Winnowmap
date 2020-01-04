@@ -5,4 +5,6 @@
 *.o
 *.dSYM
 minimap2
+minimap2_wmin
 mappy.c
+useful_scripts_weighting/exe_buildKmerFreqTable

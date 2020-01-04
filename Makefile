@@ -1,8 +1,9 @@
-CFLAGS=		-g -Wall -O2 -Wc++-compat #-Wextra
-CPPFLAGS=	-DHAVE_KALLOC
+CC= g++
+CFLAGS= -g -Wall -O2 #-Wextra
+CPPFLAGS= -DHAVE_KALLOC -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable
 INCLUDES=
 OBJS=		kthread.o kalloc.o misc.o bseq.o sketch.o sdust.o options.o index.o chain.o align.o hit.o map.o format.o pe.o esterr.o splitidx.o ksw2_ll_sse.o
-PROG=		minimap2
+PROG=		minimap2_wmin
 PROG_EXTRA=	sdust minimap2-lite
 LIBS=		-lm -lz -lpthread
 
@@ -42,7 +43,7 @@ all:$(PROG)
 
 extra:all $(PROG_EXTRA)
 
-minimap2:main.o libminimap2.a
+minimap2_wmin:main.o libminimap2.a
 		$(CC) $(CFLAGS) main.o -o $@ -L. -lminimap2 $(LIBS)
 
 minimap2-lite:example.o libminimap2.a

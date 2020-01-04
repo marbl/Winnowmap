@@ -104,7 +104,7 @@ static inline void yes_or_no(mm_mapopt_t *opt, int flag, int long_idx, const cha
 
 int main(int argc, char *argv[])
 {
-	const char *opt_str = "2aSDw:k:K:t:r:f:Vv:g:G:I:d:XT:s:x:Hcp:M:n:z:A:B:O:E:m:N:Qu:R:hF:LC:yYPo:";
+	const char *opt_str = "2aSDw:W:k:K:t:r:f:Vv:g:G:I:d:XT:s:x:Hcp:M:n:z:A:B:O:E:m:N:Qu:R:hF:LC:yYPo:";
 	ketopt_t o = KETOPT_INIT;
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
 
 	while ((c = ketopt(&o, argc, argv, 1, opt_str, long_options)) >= 0) {
 		if (c == 'w') ipt.w = atoi(o.arg);
+		else if (c == 'W') opt.kmer_freq_filename = o.arg;
 		else if (c == 'k') ipt.k = atoi(o.arg);
 		else if (c == 'H') ipt.flag |= MM_I_HPC;
 		else if (c == 'd') fnw = o.arg; // the above are indexing related options, except -I
@@ -348,7 +349,7 @@ int main(int argc, char *argv[])
 	}
 	if (opt.best_n == 0 && (opt.flag&MM_F_CIGAR) && mm_verbose >= 2)
 		fprintf(stderr, "[WARNING]\033[1;31m `-N 0' reduces alignment accuracy. Please use --secondary=no to suppress secondary alignments.\033[0m\n");
-	while ((mi = mm_idx_reader_read(idx_rdr, n_threads)) != 0) {
+	while ((mi = mm_idx_reader_read(idx_rdr, n_threads, opt.kmer_freq_filename)) != 0) {
 		if ((opt.flag & MM_F_CIGAR) && (mi->flag & MM_I_NO_SEQ)) {
 			fprintf(stderr, "[ERROR] the prebuilt index doesn't contain sequences.\n");
 			mm_idx_destroy(mi);
