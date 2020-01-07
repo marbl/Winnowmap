@@ -9,6 +9,13 @@
 #include <iostream>
 #include <fstream>
 
+/**
+ * option to dump minimizers to file
+ * use empty fasta/q read file when using this
+ * NOTE: writing done to file "minimizer.txt" in append mode
+ */
+#define WRITE_MINIMIZERS_TO_FILE 0
+
 unsigned char seq_nt4_table[256] = {
 	0, 1, 2, 3,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
 	4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
@@ -106,6 +113,10 @@ static inline int tq_shift(tiny_queue_t *q)
  */
 void mm_sketch(void *km, const char *str, int len, int w, int k, uint32_t rid, int is_hpc, mm128_v *p, const mm_idx_t *mi)
 {
+#if WRITE_MINIMIZERS_TO_FILE 
+	std::ofstream outFile ("minimizers.txt", std::ofstream::out | std::ofstream::app);
+#endif
+
 	uint64_t shift1 = 2 * (k - 1), mask = (1ULL<<2*k) - 1, kmer[2] = {0,0};
 	int i, j, l, buf_pos, min_pos, kmer_span = 0;
 	mm128_t buf[256], min = { UINT64_MAX, UINT64_MAX };
@@ -154,12 +165,24 @@ void mm_sketch(void *km, const char *str, int len, int w, int k, uint32_t rid, i
 		//tie-break criteria is using the "robust-winnowing" idea from [Schleimer et al. 2003]
 		if (info_order < min_order) // a new minimum; then write the old min
 		{
-			if (l >= w + k && min.x != UINT64_MAX) kv_push(mm128_t, km, *p, min);
+			if (l >= w + k && min.x != UINT64_MAX) 
+			{
+#if WRITE_MINIMIZERS_TO_FILE 
+				outFile << (uint32_t)(min.y >> 32) << "\t" << ((uint32_t)min.y >> 1) << "\t" << (uint64_t)(min.x >> 8) << "\n";
+#endif
+				kv_push(mm128_t, km, *p, min);
+			}
 			min = info, min_pos = buf_pos, min_order = info_order;
 		} 
 		else if (buf_pos == min_pos) // old min has moved outside the window
 		{
-			if (l >= w + k - 1 && min.x != UINT64_MAX) kv_push(mm128_t, km, *p, min);
+			if (l >= w + k - 1 && min.x != UINT64_MAX) 
+			{
+#if WRITE_MINIMIZERS_TO_FILE 
+				outFile << (uint32_t)(min.y >> 32) << "\t" << ((uint32_t)min.y >> 1) << "\t" << (uint64_t)(min.x >> 8) << "\n";
+#endif
+				kv_push(mm128_t, km, *p, min);
+			}
 			// the two loops are necessary when there are identical k-mers
 			for (j = buf_pos + 1, min.x = UINT64_MAX, min_order = 2.0; j < w; ++j) 
 				if (min_order >= buf_order[j]) min = buf[j], min_pos = j, min_order = buf_order[j]; // >= is important s.t. min is always the closest k-mer
@@ -169,5 +192,14 @@ void mm_sketch(void *km, const char *str, int len, int w, int k, uint32_t rid, i
 		if (++buf_pos == w) buf_pos = 0;
 	}
 	if (min.x != UINT64_MAX)
+	{
+#if WRITE_MINIMIZERS_TO_FILE 
+		outFile << (uint32_t)(min.y >> 32) << "\t" << ((uint32_t)min.y >> 1) << "\t" << (uint64_t)(min.x >> 8) << "\n";
+#endif
 		kv_push(mm128_t, km, *p, min);
+	}
+
+#if WRITE_MINIMIZERS_TO_FILE 
+	outFile.close();
+#endif
 }

@@ -67,10 +67,9 @@ mm128_t *mm_chain_dp(int max_dist_x, int max_dist_y, int bw, int max_skip, int m
 				c_lin = (int)(dd * .01 * avg_qspan);
 				c_log = log_dd;
 				if (sidi != sidj && dr == 0) ++sc; // possibly due to overlapping paired ends; give a minor bonus
-				//gap penalty is affecting accuracy with higher window sizes (TODO: investigate)
-				/* else if (dr > dq || sidi != sidj) sc -= c_lin < c_log? c_lin : c_log; */
-				/* else sc -= c_lin + (c_log>>1); */
-			} /* else sc -= (int)(dd * .01 * avg_qspan) + (log_dd>>1); */
+				else if (dr > dq || sidi != sidj) sc -= c_lin < c_log? c_lin : c_log;
+				else sc -= c_lin + (c_log>>1);
+			} else sc -= (int)(dd * .01 * avg_qspan) + (log_dd>>1);
 			sc += f[j];
 			if (sc > max_f) {
 				max_f = sc, max_j = j;

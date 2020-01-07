@@ -1,20 +1,31 @@
-#Purpose: Draw a histogram indicating minimizer density across a chromosome
+#Purpose: Draw a density plot indicating minimizer density across a chromosome
 #Apply hard masking cutoff and see how it affects minimizer distribution
+#Assumes a file called "minimizers.txt" containing minimizer locations on a contguous sequence
 
 library(data.table)
 library(plyr)
 
 args <- commandArgs(trailingOnly = TRUE)
 
-MAX_OCC=as.numeric(args[1])
+#MAX_OCC should be +ve positive value to enable filtering
+#OR set it to -1 to disable filtering
+MAX_OCC=as.numeric(args[1])	
 INPUTFILE="minimizers.txt"
-OUTPUTFILE="hist.pdf" 
+OUTPUTFILE="density.pdf" 
 
 allMinimizers = fread(INPUTFILE, header=F)
-counts = count(allMinimizers, 'V2')
-filteredMinimizers = subset(counts, counts$freq <= MAX_OCC)
-preservedMinimizers = allMinimizers[allMinimizers$V2 %in% filteredMinimizers$V2]
+
+if (MAX_OCC >= 0)
+{
+	counts = count(allMinimizers, 'V3')
+	filteredMinimizers = subset(counts, counts$freq <= MAX_OCC)
+	preservedMinimizers = allMinimizers[allMinimizers$V3 %in% filteredMinimizers$V3]
+	chrXMinimizers = subset(preservedMinimizers, preservedMinimizers$V1 == 357)
+} else { 
+	chrXMinimizers = subset(allMinimizers, allMinimizers$V1 == 357)
+}
 
 pdf(OUTPUTFILE, width=6,height=4)
-hist(preservedMinimizers$V1, breaks = 300, xlab="chromosome X", ylab="count of minimizers", main="Minimizer density across chromosome X")
+d <- density(chrXMinimizers$V2, bw = 500)
+plot(d, main="Minimizer density across chromosome X")
 dev.off()
