@@ -49,7 +49,7 @@ KSEQ_INIT(gzFile, gzread)
  * @param[in]     hpc         compression mode
  * @param[in/out] table       kmer frequence table
  */
-void doCounting (int len, const char *str, int k, int hpc, std::unordered_map <uint64_t, uint8_t> &table)
+void doCounting (int len, const char *str, int k, int hpc, std::unordered_map <uint64_t, uint32_t> &table)
 {
 	assert(len > 0 && (k > 0 && k <= 28)); 
 	uint64_t shift1 = 2 * (k - 1), mask = (1ULL<<2*k) - 1, kmer[2] = {0,0};
@@ -82,12 +82,11 @@ void doCounting (int len, const char *str, int k, int hpc, std::unordered_map <u
 			{
 				if (table.find(kmer[z]) == table.end())
 				{
-					table.emplace(kmer[z], 0);  //frequency of 1 is represented by 0
+					table.emplace(kmer[z], 1);  //frequency = 1
 				}
 				else
 				{
-					if (table[kmer[z]] < 255)   //hold frequency to 256 
-						table[kmer[z]] += 1;
+					table[kmer[z]] += 1;
 				}
 			}
 		}
@@ -111,11 +110,10 @@ int main(int argc, char *argv[])
 	const char* filename = argv[4];
 	const char* outfilename = argv[5];
 
-	assert (cutoff > 0 && cutoff <= 256);   //using only 1 byte to store freq. in our table
 	assert (hpc == 0 || hpc == 1);
 
 
-	std::unordered_map <uint64_t, uint8_t> kmerFreqTable;
+	std::unordered_map <uint64_t, uint32_t> kmerFreqTable;
 
 	std::cout << "kmer size = " << k << std::endl;
 	std::cout << "hpc on/off? = " << hpc << std::endl;
@@ -151,7 +149,7 @@ int main(int argc, char *argv[])
 
 		for (const auto &e : kmerFreqTable) 
 		{
-			if ((int)(e.second) + 1 >= cutoff)   //add one since we store (frequency - 1) as value  
+			if ((int)(e.second) >= cutoff)  
 			{
 				outFile << e.first << "\n";
 				kmers_printed++;
