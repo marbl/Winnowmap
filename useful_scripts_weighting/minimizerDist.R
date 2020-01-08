@@ -10,6 +10,11 @@ args <- commandArgs(trailingOnly = TRUE)
 #MAX_OCC should be +ve positive value to enable filtering
 #OR set it to -1 to disable filtering
 MAX_OCC=as.numeric(args[1])	
+
+#Reference sequence id assigned by minimap2 to that chromosome
+#this should be the serial no. of that sequence (0-based)
+#you can check .fai file 
+REFSEQID=as.numeric(args[2])
 INPUTFILE="minimizers.txt"
 OUTPUTFILE="density.pdf" 
 
@@ -20,9 +25,9 @@ if (MAX_OCC >= 0)
 	counts = count(allMinimizers, 'V3')
 	filteredMinimizers = subset(counts, counts$freq <= MAX_OCC)
 	preservedMinimizers = allMinimizers[allMinimizers$V3 %in% filteredMinimizers$V3]
-	chrXMinimizers = subset(preservedMinimizers, preservedMinimizers$V1 == 357)
+	chrXMinimizers = subset(preservedMinimizers, preservedMinimizers$V1 == REFSEQID)
 } else { 
-	chrXMinimizers = subset(allMinimizers, allMinimizers$V1 == 357)
+	chrXMinimizers = subset(allMinimizers, allMinimizers$V1 == REFSEQID)
 }
 
 pdf(OUTPUTFILE, width=6,height=4)
