@@ -63,10 +63,12 @@ static inline double applyWeight(uint64_t hash, uint64_t kmer, uint64_t mask, co
 	//currently using a naive '1-bit bloom filter' to check whether this kmer needs downweighting 
 	if(mi->downWeightedKmers[hash64(kmer, (1ULL<<(26)) - 1)])
 	{
+		/* downweigting by a factor of 8 */
+		/* further aggressive downweigting may affect accuracy */
+		/* TODO: Consider making it a user parameter */
 		double p2 = x*x;
 		double p4 = p2 * p2;
-		double p8 = p4 * p4;
-		return -1.0 * (p8 * p8);
+		return -1.0 * (p4 * p4);
 	}
 	return -1.0 * x;
 
