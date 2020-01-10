@@ -40,7 +40,7 @@ unsigned char seq_nt4_table[256] = {
  * @details		need a good hash fn, as we need uniform 
  * 						mapping for each kmer to [0,1] to do weighting
  */
-static inline uint64_t hash64(uint64_t key, uint64_t mask)
+static inline uint64_t murmerhash64(uint64_t key, uint64_t mask)
 {
 	key ^= key >> 33;
 	key *= 0xff51afd7ed558ccd;
@@ -50,18 +50,31 @@ static inline uint64_t hash64(uint64_t key, uint64_t mask)
 	return key & mask;
 }
 
+static inline uint64_t hash64(uint64_t key, uint64_t mask)
+{
+	key = (~key + (key << 21)) & mask; // key = (key << 21) - key - 1;
+	key = key ^ key >> 24;
+	key = ((key + (key << 3)) + (key << 8)) & mask; // key * 265
+	key = key ^ key >> 14;
+	key = ((key + (key << 2)) + (key << 4)) & mask; // key * 21
+	key = key ^ key >> 28;
+	key = (key + (key << 31)) & mask;
+	return key;
+}
+
 /**
  * @brief		takes hash value of kmer and adjusts it based on kmer's weight
- * 					this value will determine its order for minimizer selection
+ *					this value will determine its order for minimizer selection
  * @details	this is inspired from Chum et al.'s min-Hash and tf-idf weighting 
  */
-static inline double applyWeight(uint64_t hash, uint64_t kmer, uint64_t mask, const mm_idx_t *mi)
+static inline double applyWeight(uint64_t kmer, const mm_idx_t *mi)
 {
-	double x = hash * 1.0 / mask;  //bring it within [0, 1]
+	uint64_t hash = murmerhash64(kmer, UINT64_MAX);
+	double x = hash * 1.0 / UINT64_MAX;  //bring it within [0, 1]
 	//assert (x >= 0.0 && x <= 1.0);
 
 	//currently using a naive '1-bit bloom filter' to check whether this kmer needs downweighting 
-	if(mi->downWeightedKmers[hash64(kmer, (1ULL<<(26)) - 1)])
+	if(mi->downWeightedKmers[murmerhash64(kmer, (1ULL<<(26)) - 1)])
 	{
 		/* downweigting by a factor of 8 */
 		/* further aggressive downweigting may affect accuracy */
@@ -158,7 +171,7 @@ void mm_sketch(void *km, const char *str, int len, int w, int k, uint32_t rid, i
 				uint64_t hash_val = hash64(kmer[z], mask);
 				info.x = hash_val << 8 | kmer_span;
 				info.y = (uint64_t)rid<<32 | (uint32_t)i<<1 | z;
-				info_order = applyWeight(info.x, kmer[z], (1ULL<<(2*k+8)) - 1, mi);
+				info_order = applyWeight(kmer[z], mi);
 			}
 		} else l = 0, tq.count = tq.front = 0, kmer_span = 0;
 		buf[buf_pos] = info; // need to do this here as appropriate buf_pos and buf[buf_pos] are needed below

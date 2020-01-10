@@ -279,7 +279,7 @@ typedef struct {
  * @brief		64-bit finalizer from MurmurHash3
  * @NOTE		should be kept same as the one used for computing minimizers (sketch.c)
  */
-static inline uint64_t hash64(uint64_t key, uint64_t mask)
+static inline uint64_t murmerhash64(uint64_t key, uint64_t mask)
 {
 	key ^= key >> 33;
 	key *= 0xff51afd7ed558ccd;
@@ -392,7 +392,7 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 	while(idt >> kmer)
 	{
 		cnt++;
-		pl.mi->downWeightedKmers[hash64(kmer, (1ULL<<(26)) - 1)] = 1;
+		pl.mi->downWeightedKmers[murmerhash64(kmer, (1ULL<<(26)) - 1)] = 1;
 	}
 
 	assert(cnt <= 500000);	//currently we expect to keep very few kmers
