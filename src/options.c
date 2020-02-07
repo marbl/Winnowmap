@@ -4,7 +4,7 @@
 void mm_idxopt_init(mm_idxopt_t *opt)
 {
 	memset(opt, 0, sizeof(mm_idxopt_t));
-	opt->k = 15, opt->w = 10, opt->flag = 0;
+	opt->k = 15, opt->w = 50, opt->flag = 0;
 	opt->bucket_bits = 14;
 	opt->mini_batch_size = 50000000;
 	opt->batch_size = 4000000000ULL;
@@ -14,7 +14,8 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 {
 	memset(opt, 0, sizeof(mm_mapopt_t));
 	opt->seed = 11;
-	opt->mid_occ_frac = 2e-4f;
+	/*opt->mid_occ_frac = 2e-4f;*/
+	opt->mid_occ_frac = 0;// no masking
 	opt->sdust_thres = 0; // no SDUST masking
 
 	opt->min_cnt = 3;

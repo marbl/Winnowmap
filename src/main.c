@@ -280,12 +280,14 @@ int main(int argc, char *argv[])
 	}
 
 	if (argc == o.ind || fp_help == stdout) {
-		fprintf(fp_help, "Usage: minimap2 [options] <target.fa>|<target.idx> [query.fa] [...]\n");
+		fprintf(fp_help, "winnowmap is built on top of minimap2, while modifying its minimizer sampling and indexing procedures\n");
+		fprintf(fp_help, "Usage: winnowmap [options] <target.fa>|<target.idx> [query.fa] [...]\n");
 		fprintf(fp_help, "Options:\n");
 		fprintf(fp_help, "  Indexing:\n");
 		fprintf(fp_help, "    -H           use homopolymer-compressed k-mer (preferrable for PacBio)\n");
 		fprintf(fp_help, "    -k INT       k-mer size (no larger than 28) [%d]\n", ipt.k);
 		fprintf(fp_help, "    -w INT       minimizer window size [%d]\n", ipt.w);
+		fprintf(fp_help, "    -W FILE      input file containing list of high freq. k-mers []\n");
 		fprintf(fp_help, "    -I NUM       split index for every ~NUM input bases [4G]\n");
 		fprintf(fp_help, "    -d FILE      dump index to FILE []\n");
 		fprintf(fp_help, "  Mapping:\n");
@@ -329,7 +331,7 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "                 - asm5/asm10/asm20 - asm-to-ref mapping, for ~0.1/1/5%% sequence divergence\n");
 		fprintf(fp_help, "                 - splice/splice:hq - long-read/Pacbio-CCS spliced alignment\n");
 		fprintf(fp_help, "                 - sr - genomic short-read mapping\n");
-		fprintf(fp_help, "\nSee `man ./minimap2.1' for detailed description of these and other advanced command-line options.\n");
+		/*fprintf(fp_help, "\nSee `man ./minimap2.1' for detailed description of these and other advanced command-line options.\n");*/
 		return fp_help == stdout? 0 : 1;
 	}
 

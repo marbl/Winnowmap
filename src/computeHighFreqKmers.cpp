@@ -1,11 +1,11 @@
-//g++ -std=c++11 buildKmerFreqTable.cpp -lz -o exe_buildKmerFreqTable
+//g++ -std=c++11 computeHighFreqKmers.cpp -lz -o computeHighFreqKmers
 
 //Input parameters
 // <arg1> : kmer length 
 // <arg2> : frequency threshold x  (any kmer with frequency >= x will be printed)
-// <arg2> : 0: no compression, 1: homopolymer compression
-// <arg3> : input fasta/fastq file
-// <arg4> : output file name
+// <arg3> : 0: no compression, 1: homopolymer compression
+// <arg4> : input fasta/fastq file
+// <arg5> : output file name
 // Goal   : output list of highly repetitive kmers
 //          each ouptut kmer is encoded with 2k bits, using similar encoding as minimap2
 //          each output kmer is represented by its canonical representation in the output
@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <fstream>
-#include "../kseq.h"
+#include "kseq.h"
 KSEQ_INIT(gzFile, gzread)
 
 //mapping characters to 2-bit (copied from minimap2)
@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
 	if (argc != 6)
 	{
 		fprintf(stderr, "%s expects five argument parameters\n", argv[0]);
+		fprintf(stderr, "Usage: %s [k] [homopolymer compr: 0/1] [freq cutoff] ref.fa output.txt\n", argv[0]);
 		exit(1);
 	}
 
