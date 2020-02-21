@@ -380,7 +380,7 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 
 	//set up bloom filter
 	bloom_parameters parameters;
-	parameters.projected_element_count = cnt;
+	parameters.projected_element_count = std::max(cnt, (uint64_t)1000);
 	parameters.false_positive_probability = 0.0001; 
 
 	if (!parameters)
