@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <bitset>
+#include "bloom/bloom_filter.hpp"
 
 #define MM_F_NO_DIAG       0x001 // no exact diagonal hit
 #define MM_F_NO_DUAL       0x002 // skip pairs where query name is lexicographically larger than target name
@@ -69,7 +69,7 @@ typedef struct {
 	uint32_t *S;               // 4-bit packed sequence
 	struct mm_idx_bucket_s *B; // index (hidden)
 	struct mm_idx_intv_s *I;   // intervals (hidden)
-	std::bitset<67108864> downWeightedKmers;    //1 bit bloom filter (size = 2^26)  
+	bloom_filter* downFilter;  // bloom filter for down-weighted kmers
 	void *km, *h;
 } mm_idx_t;
 

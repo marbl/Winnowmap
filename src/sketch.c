@@ -73,8 +73,7 @@ static inline double applyWeight(uint64_t kmer, const mm_idx_t *mi)
 	double x = hash * 1.0 / UINT64_MAX;  //bring it within [0, 1]
 	//assert (x >= 0.0 && x <= 1.0);
 
-	//currently using a naive '1-bit bloom filter' to check whether this kmer needs downweighting 
-	if(mi->downWeightedKmers[murmerhash64(kmer, (1ULL<<(26)) - 1)])
+	if (mi->downFilter->contains(kmer))
 	{
 		/* downweigting by a factor of 8 */
 		/* further aggressive downweigting may affect accuracy */

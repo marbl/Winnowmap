@@ -7,7 +7,13 @@ To address the above problem, Winnowmap implements a novel **weighted minimizer*
 
 ## Compile
 
-Winnowmap requires c++11 to build, which is available in GCC >= 4.8. To compile Winnowmap, run `make`. Expect two executables `computeHighFreqKmers` and `winnowmap`.
+Winnowmap requires c++11 to build, which is available in GCC >= 4.8. 
+  ```sh
+	git clone --recursive https://github.com/marbl/Winnowmap.git
+	cd Winnomap
+	make
+  ```
+Expect two executables `computeHighFreqKmers` and `winnowmap`.
 
 ## Usage
 

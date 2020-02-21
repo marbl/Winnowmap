@@ -55,7 +55,6 @@ mm_idx_t *mm_idx_init(int w, int k, int b, int flag)
 	mi = (mm_idx_t*)calloc(1, sizeof(mm_idx_t));
 	mi->w = w, mi->k = k, mi->b = b, mi->flag = flag;
 	mi->B = (mm_idx_bucket_t*)calloc(1<<b, sizeof(mm_idx_bucket_t));
-	mi->downWeightedKmers.reset(); //set all bits to 0
 	if (!(mm_dbg_flag & 1)) mi->km = km_init();
 	return mi;
 }
@@ -82,6 +81,7 @@ void mm_idx_destroy(mm_idx_t *mi)
 			free(mi->seq[i].name);
 		free(mi->seq);
 	} else km_destroy(mi->km);
+	delete mi->downFilter;
 	free(mi->B); free(mi->S); free(mi);
 }
 
@@ -275,20 +275,6 @@ typedef struct {
 	mm128_v a;
 } step_t;
 
-/**
- * @brief		64-bit finalizer from MurmurHash3
- * @NOTE		should be kept same as the one used for computing minimizers (sketch.c)
- */
-static inline uint64_t murmerhash64(uint64_t key, uint64_t mask)
-{
-	key ^= key >> 33;
-	key *= 0xff51afd7ed558ccd;
-	key ^= key >> 33;
-	key *= 0xc4ceb9fe1a85ec53;
-	key ^= key >> 33;
-	return key & mask;
-}
-
 static void mm_idx_add(mm_idx_t *mi, int n, const mm128_t *a)
 {
 	int i, mask = (1<<mi->b) - 1;
@@ -390,16 +376,36 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 	uint64_t kmer;
 	uint64_t cnt = 0;
 	while(idt >> kmer)
-	{
 		cnt++;
-		pl.mi->downWeightedKmers[murmerhash64(kmer, (1ULL<<(26)) - 1)] = 1;
+
+	//set up bloom filter
+	bloom_parameters parameters;
+	parameters.projected_element_count = cnt;
+	parameters.false_positive_probability = 0.0001; 
+
+	if (!parameters)
+	{
+		std::cout << "Error - Invalid set of bloom filter parameters!" << std::endl;
+		exit(1);
 	}
 
-	assert(cnt <= 500000);	//currently we expect to keep very few kmers
-							//TODO: implement a proper bloom filter based solution or use exact std::unordered_set
+	parameters.compute_optimal_parameters();
+	pl.mi->downFilter = new bloom_filter(parameters);
 
 
-	fprintf(stderr, "[M::%s::%.3f*%.2f] collected downweighted kmers, no. of kmers read=%" PRIu64", marked %" PRIu64" bits\n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), cnt, pl.mi->downWeightedKmers.count());
+
+	//read the file again
+	idt.clear();
+	idt.seekg(0);
+	while(idt >> kmer)
+	{
+		pl.mi->downFilter->insert(kmer);
+	}
+
+	assert(cnt == pl.mi->downFilter->element_count());
+
+	fprintf(stderr, "[M::%s::%.3f*%.2f] collected downweighted kmers, no. of kmers read=%" PRIu64"\n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), cnt);
+	fprintf(stderr, "[M::%s::%.3f*%.2f] saved the kmers in a bloom filter: hash functions=%u and size=%llu \n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), parameters.optimal_parameters.number_of_hashes, parameters.optimal_parameters.table_size);
 	/*------------------------*/
 
 	kt_pipeline(n_threads < 3? n_threads : 3, worker_pipeline, &pl, 3);

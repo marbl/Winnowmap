@@ -1,0 +1,3 @@
+[submodule "src/bloom"]
+	path = src/bloom
+	url = https://github.com/ArashPartow/bloom.git
