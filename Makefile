@@ -1,17 +1,22 @@
-CC= g++
 CFLAGS= -g -Wall -O2 #-Wextra
 CPPFLAGS= -DHAVE_KALLOC -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable
-PROG=		winnowmap
 LIBS=		-lm -lz -lpthread
 
-all:$(PROG)
+# Assuming git submodules were cloned previously
+# If not, run "git submodule update --init --recursive" before "make"
 
-winnowmap:
+all:winnowmap
+
+winnowmap: MAKE_DIRS
 	+$(MAKE) -C src
-	$(CC) $(CPPFLAGS) src/main.o -o $@ -Lsrc -lminimap2 $(LIBS)
-	$(CC) $(CPPFLAGS) src/computeHighFreqKmers.cpp -o computeHighFreqKmers $(LIBS)
+	$(CXX) $(CPPFLAGS) src/main.o -o bin/$@ -Lsrc -lminimap2 $(LIBS)
+	+$(MAKE) -C src/meryl/src TARGET_DIR=$(shell pwd) 
+
+MAKE_DIRS:
+	@if [ ! -e bin ] ; then mkdir -p bin ; fi
 
 clean:
-	rm -fr $(PROG) computeHighFreqKmers
+	rm -rf bin
+	rm -rf lib 
 	+$(MAKE) clean -C src
-
+	+$(MAKE) clean -C src/meryl/src

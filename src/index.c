@@ -357,6 +357,22 @@ static void *worker_pipeline(void *shared, int step, void *in)
     return 0;
 }
 
+uint64_t encodeKmer(const std::string &str)
+{
+	uint64_t kmer[2] = {0,0};
+	int k = str.length();
+	uint64_t shift1 = 2 * (k - 1);
+
+	for (int i = 0; i < k; ++i) 
+	{
+		int c = seq_nt4_table[(uint8_t)str[i]];
+		kmer[0] = kmer[0] << 2 | c;  
+		kmer[1] = (kmer[1] >> 2) | (3ULL^c) << shift1;
+	}
+
+	return kmer[0] < kmer[1]? kmer[0] : kmer[1];
+}
+
 mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini_batch_size, int n_threads, uint64_t batch_size, const char *kmer_freq_filename)
 {
 	pipeline_t pl;
@@ -373,15 +389,20 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 
 	fprintf(stderr, "[M::%s::%.3f*%.2f] reading downweighted kmers\n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
 
-	uint64_t kmer;
+	std::string kmer;
 	uint64_t cnt = 0;
-	while(idt >> kmer)
+	uint64_t freq;
+	while(idt >> kmer >> freq)
 		cnt++;
+
+	if(cnt > 0)
+		assert(("kmer length used for kmer counting and mapping must be consistent", kmer.length() == k));
 
 	//set up bloom filter
 	bloom_parameters parameters;
 	parameters.projected_element_count = std::max(cnt, (uint64_t)1000);
-	parameters.false_positive_probability = 0.0001; 
+	parameters.false_positive_probability = 0.001; 
+	parameters.maximum_number_of_hashes = 2;
 
 	if (!parameters)
 	{
@@ -393,13 +414,12 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 	pl.mi->downFilter = new bloom_filter(parameters);
 
 
-
 	//read the file again
 	idt.clear();
 	idt.seekg(0);
-	while(idt >> kmer)
+	while(idt >> kmer >> freq)
 	{
-		pl.mi->downFilter->insert(kmer);
+		pl.mi->downFilter->insert(encodeKmer(kmer));
 	}
 
 	assert(cnt == pl.mi->downFilter->element_count());

@@ -4,7 +4,4 @@
 *.a
 *.o
 *.dSYM
-minimap2
-winnowmap
-computeHighFreqKmers
-mappy.c
+bin
