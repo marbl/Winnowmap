@@ -13,7 +13,7 @@ Winnowmap requires c++11 to build, which is available in GCC >= 4.8.
 	cd Winnowmap
 	make -j4
   ```
-Expect `winnowmap` and `meryl` executables in `bin` folder. 
+Expect `winnowmap` and `meryl` executables in `bin` folder. The `recursive` option used above is necessary to download all submodules .
 
 ## Usage
 
@@ -21,7 +21,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 
 *  Mapping ONT reads
   ```sh
-  meryl count k=15 output merylDB_k15 ref.fa
+	meryl count k=15 output merylDB_k15 ref.fa
 	meryl print greater-than distinct=0.999 merylDB_k15 > bad_k15_mers.txt
 
 	winnowmap -W bad_k15_mers.txt -cx map-ont ref.fa ont.fq.gz > output.paf
@@ -31,12 +31,12 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 *  Mapping PacBio (CLR / HiFi) reads
 
   ```sh
-  meryl count compress k=19 output merylDB_Hk19 ref.fa
+	meryl count compress k=19 output merylDB_Hk19 ref.fa
 	meryl print greater-than distinct=0.999 merylDB_Hk19 > bad_Hk19_mers.txt
 
 	winnowmap -W bad_Hk19_mers.txt -cx map-pb ref.fa pacbio.fq.gz > output.paf
   ```
-	The k-mer counting step using meryl must be consistent with the final mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is kept consistent with `map-ont` and `map-pb` presets of minimap2. In both cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
+  The k-mer counting step using meryl must be consistent with the final mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is kept consistent with `map-ont` and `map-pb` presets of minimap2. In both cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
 
 ## Benchmarking
 
