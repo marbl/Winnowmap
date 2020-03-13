@@ -11,18 +11,18 @@ Winnowmap requires c++11 to build, which is available in GCC >= 4.8.
   ```sh
 	git clone --recursive https://github.com/marbl/Winnowmap.git
 	cd Winnowmap
-	make -j4
+	make -j8
   ```
 Expect `winnowmap` and `meryl` executables in `bin` folder. The `recursive` option used above is necessary to download all submodules .
 
 ## Usage
 
-For either mapping long reads or computing whole-genome alignments, Winnowmap requires pre-computing high frequency k-mers (e.g., top 0.1% most frequent) in a reference. Winnowmap uses [meryl](https://github.com/marbl/meryl) k-mer counting tool for this purpose.  
+For either mapping long reads or computing whole-genome alignments, Winnowmap requires pre-computing high frequency k-mers (e.g., top 0.02% most frequent) in a reference. Winnowmap uses [meryl](https://github.com/marbl/meryl) k-mer counting tool for this purpose.  
 
 *  Mapping ONT reads
   ```sh
 	meryl count k=15 output merylDB_k15 ref.fa
-	meryl print greater-than distinct=0.999 merylDB_k15 > bad_k15_mers.txt
+	meryl print greater-than distinct=0.9998 merylDB_k15 > bad_k15_mers.txt
 
 	winnowmap -W bad_k15_mers.txt -cx map-ont ref.fa ont.fq.gz > output.paf
   ```
@@ -32,7 +32,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 
   ```sh
 	meryl count compress k=19 output merylDB_Hk19 ref.fa
-	meryl print greater-than distinct=0.999 merylDB_Hk19 > bad_Hk19_mers.txt
+	meryl print greater-than distinct=0.9998 merylDB_Hk19 > bad_Hk19_mers.txt
 
 	winnowmap -W bad_Hk19_mers.txt -cx map-pb ref.fa pacbio.fq.gz > output.paf
   ```

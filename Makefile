@@ -1,6 +1,5 @@
-CFLAGS= -g -Wall -O2 #-Wextra
 CPPFLAGS= -DHAVE_KALLOC -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable
-LIBS=		-lm -lz -lpthread
+LIBS= -lm -lz -lpthread
 
 # Assuming git submodules were cloned previously
 # If not, run "git submodule update --init --recursive" before "make"
