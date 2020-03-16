@@ -115,6 +115,7 @@ typedef struct {
 
 	int bw;          // bandwidth
 	int max_gap, max_gap_ref; // break a chain if there are no minimizers in a max_gap window
+	int min_gap_ref; // minimum gap window
 	int max_frag_len;
 	int max_chain_skip, max_chain_iter;
 	int min_cnt;         // min number of minimizers on each chain
