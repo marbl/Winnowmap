@@ -68,15 +68,7 @@ static void collect_minimizers(void *km, const mm_mapopt_t *opt, const mm_idx_t 
 	for (i = n = 0; i < n_segs; ++i) {
 		size_t j;
 
-		//Adjust query sampling rate based on its length
-		//Idea is very long reads should undergo sparser sampling, 
-		//and short reads should undergo denser sampling
-		if (qlens[i] >= 50000)
-			mm_sketch(km, seqs[i], qlens[i], mi->w * 2, mi->k, i, mi->flag&MM_I_HPC, mv, mi);
-		else if (qlens[i] <= 2500)
-			mm_sketch(km, seqs[i], qlens[i], mi->w / 2, mi->k, i, mi->flag&MM_I_HPC, mv, mi);
-		else
-			mm_sketch(km, seqs[i], qlens[i], mi->w, mi->k, i, mi->flag&MM_I_HPC, mv, mi);
+		mm_sketch(km, seqs[i], qlens[i], mi->w, mi->k, i, mi->flag&MM_I_HPC, mv, mi);
 
 		for (j = n; j < mv->n; ++j)
 			mv->a[j].y += sum << 1;

@@ -15,7 +15,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	memset(opt, 0, sizeof(mm_mapopt_t));
 	opt->seed = 11;
 	/*opt->mid_occ_frac = 2e-4f;*/
-	opt->mid_occ_frac = 0;// no masking
+	opt->mid_occ_frac = 0;
 	opt->sdust_thres = 0; // no SDUST masking
 
 	opt->min_cnt = 3;
@@ -74,13 +74,13 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mm_idxopt_init(io);
 		mm_mapopt_init(mo);
 	} else if (strcmp(preset, "ava-ont") == 0) {
-		/*io->flag = 0, io->k = 15, io->w = 5;*/
+		/* io->w = 5;*/
 		io->flag = 0, io->k = 15;
 		mo->flag |= MM_F_ALL_CHAINS | MM_F_NO_DIAG | MM_F_NO_DUAL | MM_F_NO_LJOIN;
 		mo->min_chain_score = 100, mo->pri_ratio = 0.0f, mo->max_gap = 10000, mo->max_chain_skip = 25;
 		mo->bw = 2000;
 	} else if (strcmp(preset, "ava-pb") == 0) {
-		/*io->flag |= MM_I_HPC, io->k = 19, io->w = 5;*/
+		/* io->w = 5;*/
 		io->flag |= MM_I_HPC, io->k = 19;
 		mo->flag |= MM_F_ALL_CHAINS | MM_F_NO_DIAG | MM_F_NO_DUAL | MM_F_NO_LJOIN;
 		mo->min_chain_score = 100, mo->pri_ratio = 0.0f, mo->max_gap = 10000, mo->max_chain_skip = 25;
@@ -88,29 +88,33 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		io->flag |= MM_I_HPC, io->k = 19;
 	} else if (strcmp(preset, "map-ont") == 0) {
 		io->flag = 0, io->k = 15;
+		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "asm5") == 0) {
-		/*io->flag = 0, io->k = 19, io->w = 19;*/
+		/* io->w = 19;*/
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 19, mo->q = 39, mo->q2 = 81, mo->e = 3, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
 		mo->best_n = 50;
+		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "asm10") == 0) {
-		/*io->flag = 0, io->k = 19, io->w = 19;*/
+		/* io->w = 19;*/
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 9, mo->q = 16, mo->q2 = 41, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
 		mo->best_n = 50;
+		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "asm20") == 0) {
-		/*io->flag = 0, io->k = 19, io->w = 10;*/
+		/* io->w = 10;*/
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 4, mo->q = 6, mo->q2 = 26, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
 		mo->best_n = 50;
+		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "short") == 0 || strcmp(preset, "sr") == 0) {
-		/*io->flag = 0, io->k = 21, io->w = 11;*/
+		/* io->w = 11;*/
 		io->flag = 0, io->k = 21;
 		mo->flag |= MM_F_SR | MM_F_FRAG_MODE | MM_F_NO_PRINT_2ND | MM_F_2_IO_THREADS | MM_F_HEAP_SORT;
 		mo->pe_ori = 0<<1|1; // FR
@@ -129,7 +133,7 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mo->max_occ = 5000;
 		mo->mini_batch_size = 50000000;
 	} else if (strncmp(preset, "splice", 6) == 0 || strcmp(preset, "cdna") == 0) {
-		/*io->flag = 0, io->k = 15, io->w = 5;*/
+		/* io->w = 5;*/
 		io->flag = 0, io->k = 15;
 		mo->flag |= MM_F_SPLICE | MM_F_SPLICE_FOR | MM_F_SPLICE_REV | MM_F_SPLICE_FLANK;
 		mo->max_gap = 2000, mo->max_gap_ref = mo->bw = 200000;
