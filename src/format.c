@@ -122,7 +122,7 @@ void mm_write_sam_hdr(const mm_idx_t *idx, const char *rg, const char *ver, int 
 			mm_sprintf_lite(&str, "@SQ\tSN:%s\tLN:%d\n", idx->seq[i].name, idx->seq[i].len);
 	}
 	if (rg) sam_write_rg_line(&str, rg);
-	mm_sprintf_lite(&str, "@PG\tID:minimap2\tPN:minimap2");
+	mm_sprintf_lite(&str, "@PG\tID:Winnowmap\tPN:Winnowmap");
 	if (ver) mm_sprintf_lite(&str, "\tVN:%s", ver);
 	if (argc > 1) {
 		int i;

@@ -36,7 +36,17 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 
 	winnowmap -W bad_Hk19_mers.txt -cx map-pb ref.fa pacbio.fq.gz > output.paf
   ```
-  The k-mer counting step using meryl must be consistent with the final mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is kept consistent with `map-ont` and `map-pb` presets of minimap2. In both cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
+
+*  Mapping genome assemblies
+
+  ```sh
+	meryl count k=19 output merylDB_k19 ref.fa
+	meryl print greater-than distinct=0.9998 merylDB_k19 > bad_k19_mers.txt
+
+	winnowmap -W bad_k19_mers.txt -cx asm5 asm1.fa asm2.fa > output.paf
+  ```
+
+  The k-mer counting step using meryl must be consistent with the final mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is kept consistent with `map-ont` and `map-pb` presets of minimap2. In all use-cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
 
 ## Benchmarking
 
@@ -46,3 +56,7 @@ Comparing Winnowmap to minimap2, we observed a reduction in the mapping error-ra
 <img src="https://1aaaa1f6-a-62cb3a1a-s-sites.googlegroups.com/site/chirgjain/readme-winnowmap-density.jpg?attachauth=ANoY7cost_TsHo3yjf_COK13C-JBDQIio-GCb_hNSAdMQ92aRqISg21pJsg5dMKD5yMalcAugwI5vkqf9Cdu3sVk-xBz-SkRMkuyWAk3vK06_LEF2ay1pNSzCxU6nUNywhTYb5li8moC-YzRMmJZt7r3KFvcI34IbD7rktjXAPn_5Jba86E19uXq2o6zjAEDmsfjrKxqAdbsnPL3bU8L4wHwsH9gyv6170wD7WFJ_8pfFjeWam0v2uY%3D&attredirects=0" width=400px"> <br>
 Minimizer sampling density using a human X chromosome as the reference, with the centromere positioned between 58 Mbp and 61 Mbp. ‘Standard’ method refers to the classic minimizer sampling algorithm from <a href="http://www.cs.toronto.edu/~wayne/research/papers/minimizers.pdf">Roberts et al.</a>, without any masking or modification.
 </p>
+
+## Publication
+
+- **Chirag Jain, Arang Rhie, Haowen Zhang, Chaudia Chu, Brian Walenz, Sergey Koren and Adam Phillippy**. "Weighted minimizer sampling improves long read mapping". *Bioinformatics (ISMB proceedings)*, 2020.
