@@ -40,7 +40,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 *  Mapping genome assemblies
 
   ```sh
-	meryl count k=19 output merylDB_k19 ref.fa
+	meryl count k=19 output merylDB_k19 asm1.fa
 	meryl print greater-than distinct=0.9998 merylDB_k19 > bad_k19_mers.txt
 
 	winnowmap -W bad_k19_mers.txt -cx asm5 asm1.fa asm2.fa > output.paf
