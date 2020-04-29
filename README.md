@@ -45,8 +45,9 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 
 	winnowmap -W bad_k19_mers.txt -cx asm5 asm1.fa asm2.fa > output.paf
   ```
+  In this case, it may be useful to visualize the genome-to-genome dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts/generateDotPlot) can be used to generate a dot plot from paf-formatted output.
 
-  The k-mer counting step using meryl must be consistent with the final mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is kept consistent with `map-ont` and `map-pb` presets of minimap2. In all use-cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
+  In all the three use-cases, the k-mer counting step using meryl is kept consistent with the  mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is consistent with `map-ont` and `map-pb` presets of minimap2. In all use-cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
 
 ## Benchmarking
 
