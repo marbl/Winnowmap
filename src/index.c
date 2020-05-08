@@ -395,8 +395,9 @@ mm_idx_t *mm_idx_gen(mm_bseq_file_t *fp, int w, int k, int b, int flag, int mini
 	while(idt >> kmer >> freq)
 		cnt++;
 
+	//kmer length used for kmer counting and mapping must be consistent
 	if(cnt > 0)
-		assert(("kmer length used for kmer counting and mapping must be consistent", kmer.length() == k));
+		assert(kmer.length() == k);
 
 	//set up bloom filter
 	bloom_parameters parameters;
