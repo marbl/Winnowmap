@@ -29,6 +29,7 @@ static ko_longopt_t long_options[] = {
 	{ "seed",           ko_required_argument, 302 },
 	{ "no-kalloc",      ko_no_argument,       303 },
 	{ "print-qname",    ko_no_argument,       304 },
+	{ "dbg-polish",     ko_no_argument,       305 },
 	{ "no-self",        ko_no_argument,       'D' },
 	{ "print-seeds",    ko_no_argument,       306 },
 	{ "max-chain-skip", ko_required_argument, 307 },
@@ -183,6 +184,7 @@ int main(int argc, char *argv[])
 		else if (c == 302) opt.seed = atoi(o.arg); // --seed
 		else if (c == 303) mm_dbg_flag |= MM_DBG_NO_KALLOC; // --no-kalloc
 		else if (c == 304) mm_dbg_flag |= MM_DBG_PRINT_QNAME; // --print-qname
+		else if (c == 305) mm_dbg_flag |= MM_DBG_PRINT_QNAME | MM_DBG_POLISH; // -- dbg-polish
 		else if (c == 306) mm_dbg_flag |= MM_DBG_PRINT_QNAME | MM_DBG_PRINT_SEED, n_threads = 1; // --print-seed
 		else if (c == 307) opt.max_chain_skip = atoi(o.arg); // --max-chain-skip
 		else if (c == 339) opt.max_chain_iter = atoi(o.arg); // --max-chain-iter

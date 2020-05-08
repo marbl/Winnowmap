@@ -309,8 +309,6 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
 	memset(collect_n_a, 0, countStartingPositions * sizeof(int64_t));
 
-	/*fprintf(stderr, "processing query name: %s\n", qname);*/
-
 	//define new set of options for first stage
 	//generate many candidate alignments to improve mapq estimation
 	mm_mapopt_t opt2 = *opt;
@@ -444,13 +442,15 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 					mostPromisingMapping = j;
 					collect_n_a[suffix_id] = regs0[j].cnt;
 
-					/*fprintf(stderr, "qname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq); */
+					if (mm_dbg_flag & MM_DBG_POLISH)
+						fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+
 					break;		
 				}
 			}
 
-			/*if (!mappingFound)*/
-				/*fprintf(stderr, "qname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, sub_len, max_mapq_observed_local, n_regs0); */
+			if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
+				fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, sub_len, max_mapq_observed_local, n_regs0);
 
 			if (mappingFound)
 			{
@@ -610,13 +610,15 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 						mostPromisingMapping = j;
 						collect_n_a[suffix_id] = regs0[j].cnt;
 
-						/*fprintf(stderr, "qname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq); */
+						if (mm_dbg_flag & MM_DBG_POLISH)
+							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+
 						break;		
 					}
 				}
 
-				/*if (!mappingFound)*/
-					/*fprintf(stderr, "qname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, -1 * sub_len, max_mapq_observed_local, n_regs0); */
+				if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
+					fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, -1 * sub_len, max_mapq_observed_local, n_regs0);
 
 				if (mappingFound)
 				{
@@ -650,8 +652,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			}
 		}
 
-		/*if(!mappingFound)*/
-			/*fprintf(stderr, "qname:%s, begin:%d, max_mapq_overall:%d [NONE FOUND] \n", qname, sub_begin, max_mapq_observed); */
+		if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
+			fprintf(stderr, "PO\tqname:%s, begin:%d, max_mapq_overall:%d [NONE FOUND] \n", qname, sub_begin, max_mapq_observed);
 	}
 
 	//define new set of options for next stage
@@ -677,7 +679,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 		for (i = 0; i < countStartingPositions; i++)
 			n_a += collect_n_a[i];
 
-		/*fprintf(stderr, "qname: %s, n_a (before filtering and checking for duplicates:%" PRId64 "\n", qname, n_a); */
+		if (mm_dbg_flag & MM_DBG_POLISH)
+			fprintf(stderr, "PO\tqname: %s, n_a (before filtering and checking for duplicates:%" PRId64 "\n", qname, n_a);
 
 		if (n_a)
 		{
@@ -719,15 +722,23 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			a = a_unique;
 			n_a = n_a_unique;
 
-			/*fprintf(stderr, "qname: %s, n_a (after filtering and checking for duplicates:%" PRId64 "\n", qname, n_a); */
+			if (mm_dbg_flag & MM_DBG_POLISH)
+				fprintf(stderr, "PO\tqname: %s, n_a (after filtering and checking for duplicates:%" PRId64 ", min_cnt:%d\n", qname, n_a, opt_s->min_cnt);
 
 			//sort anchors by reference position before moving on
 			radix_sort_128x(a, a + n_a);
+
+			if (n_a < opt_s->min_cnt)  //insufficient no. of seeds
+			{
+				n_a = 0;	//reset to 0
+				kfree(b->km, a);
+			}
 		}
-		else
+
+		if (!n_a)
 		{
 			//go with the default route
-			fprintf(stderr, "note: falling back to default mapping algorithm for read: %s\n", qname);
+			fprintf(stderr, "PO\tfalling back to default mapping algorithm for read: %s\n", qname);
 
 			//revert to original parameters
 			*opt_s = *opt;
