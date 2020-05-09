@@ -19,3 +19,7 @@ clean:
 	rm -rf lib 
 	+$(MAKE) clean -C src
 	+$(MAKE) clean -C src/meryl/src
+
+cleanw:
+	rm -rf bin/winnowmap
+	+$(MAKE) clean -C src
