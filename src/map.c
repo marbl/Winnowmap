@@ -296,10 +296,10 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	//stage1: Pre-compute confident read alignments of substrings of input read
 	//parameters set assuming ONT / asm contigs
 	//TODO: Test HiFi
-	constexpr int maxPrefixLength = 32000;
-	constexpr int minPrefixLength = 4000;  
-	constexpr float prefixIncrementFactor = 2;
-	constexpr int suffixSampleOffset = 1000;
+	constexpr int maxPrefixLength = 32768;
+	constexpr int minPrefixLength = 5000;
+	constexpr float prefixIncrementFactor = 1.6;
+	constexpr int suffixSampleOffset = 2000;
 	constexpr int min_mapq = 5;							//higher cutoff affects runtime
 	constexpr int minAnchorFrequency = 2;		//for stage2: discard infrequent anchors
 
@@ -479,8 +479,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 				kfree(b->km, u);
 				kfree(b->km, mini_pos);
 
-				if (mappingFound)
-					break;		// found shortest prefix
+				if (mappingFound || !n_regs0)
+					break;		// mappingFound-> found shortest prefix; !n_regs0-> no candidate
 			}
 
 			//consider 'sub_len' bases to the left
@@ -637,8 +637,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 				kfree(b->km, u);
 				kfree(b->km, mini_pos);
 
-				if (mappingFound)
-					break;		// found shortest prefix
+				if (mappingFound || !n_regs0)
+					break;		// mappingFound-> found shortest prefix; !n_regs0-> no candidate
 			}
 		}
 
@@ -691,30 +691,22 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			//discard duplicate entries
 			std::vector<bool> visited (n_a, false);
 			int64_t n_a_unique = 0;
-			mm128_t* a_unique = (mm128_t*)kmalloc(b->km, n_a * sizeof(mm128_t));
+			std::sort(a, a + n_a, [](const mm128_t &a, const mm128_t &b){return std::tie(a.x, a.y) < std::tie(b.x, b.y);});
 
 			//traverse through the array elements
-			for (i = 0; i < n_a; i++)
+			for (i = 0; i < n_a;)
 			{
-				// Skip this element if already processed 
-				if (visited[i] == true) 
-					continue; 
+				j = i;
 
-				int count = 1; 
-				for (int j = i + 1; j < n_a; j++) { 
-					if (a[j].x == a[i].x && a[j].y == a[i].y) {
-						visited[j] = true;
-						count++; 
-					}
-				}
+				while (std::tie(a[i].x, a[i].y) == std::tie(a[j].x, a[j].y))
+					j++;
 
-				if (count >= minAnchorFrequency)
-					a_unique[n_a_unique++] = a[i];
+				if (j - i >= minAnchorFrequency)
+					a[n_a_unique++] = a[i];
+
+				i = j;
 			}
 
-			//swap a and a_unique buffers
-			kfree(b->km, a);
-			a = a_unique;
 			n_a = n_a_unique;
 
 			if (mm_dbg_flag & MM_DBG_POLISH)
