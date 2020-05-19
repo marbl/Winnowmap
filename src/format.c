@@ -126,7 +126,7 @@ void mm_write_sam_hdr(const mm_idx_t *idx, const char *rg, const char *ver, int 
 	if (ver) mm_sprintf_lite(&str, "\tVN:%s", ver);
 	if (argc > 1) {
 		int i;
-		mm_sprintf_lite(&str, "\tCL:minimap2");
+		mm_sprintf_lite(&str, "\tCL:winnowmap");
 		for (i = 1; i < argc; ++i)
 			mm_sprintf_lite(&str, " %s", argv[i]);
 	}
