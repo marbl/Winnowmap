@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <cinttypes>
 #include <algorithm>
+#include <tuple>
 #include "kthread.h"
 #include "kvec.h"
 #include "kalloc.h"
