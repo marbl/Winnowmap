@@ -43,7 +43,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 	meryl count k=19 output merylDB_k19 asm1.fa
 	meryl print greater-than distinct=0.9998 merylDB_k19 > bad_k19_mers.txt
 
-	winnowmap -W bad_k19_mers.txt -cx asm5 asm1.fa asm2.fa > output.paf
+	winnowmap -W bad_k19_mers.txt -cx asm20 asm1.fa asm2.fa > output.paf
   ```
   In this case, it may be useful to visualize the genome-to-genome dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts) can be used to generate a dot plot from paf-formatted output.
 
