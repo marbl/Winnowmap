@@ -15,7 +15,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	memset(opt, 0, sizeof(mm_mapopt_t));
 	opt->seed = 11;
 	/*opt->mid_occ_frac = 2e-4f;*/
-	opt->mid_occ_frac = 0;
+	opt->mid_occ_frac = 1e-5f;
 	opt->sdust_thres = 0; // no SDUST masking
 
 	opt->min_cnt = 3;
@@ -98,12 +98,11 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 
 		//prefix settings specific for hifi reads
 		//TODO: separate CLR (and other modes that are not supported)
-		mo->maxPrefixLength = 4096;
-		mo->minPrefixLength = 1000;
-		mo->suffixSampleOffset = 500;
+		mo->maxPrefixLength = 3276;
+		mo->minPrefixLength = 500;
+		mo->suffixSampleOffset = 200;
 	} else if (strcmp(preset, "map-ont") == 0) {
 		io->flag = 0, io->k = 15;
-		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "asm5") == 0) {
 		/* io->w = 19;*/
 		io->flag = 0, io->k = 19;
@@ -111,7 +110,6 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
 		mo->best_n = 50;
-		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "asm10") == 0) {
 		/* io->w = 19;*/
 		io->flag = 0, io->k = 19;
@@ -119,7 +117,6 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
 		mo->best_n = 50;
-		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "asm20") == 0) {
 		/* io->w = 10;*/
 		io->flag = 0, io->k = 19;
@@ -127,7 +124,6 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
 		mo->best_n = 50;
-		mo->mid_occ_frac = 1e-5f;
 	} else if (strcmp(preset, "short") == 0 || strcmp(preset, "sr") == 0) {
 		/* io->w = 11;*/
 		io->flag = 0, io->k = 21;
