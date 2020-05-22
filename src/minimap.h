@@ -121,6 +121,13 @@ typedef struct {
 	int min_cnt;         // min number of minimizers on each chain
 	int min_chain_score; // min chaining score
 
+	int maxPrefixLength;
+	int minPrefixLength;
+	float prefixIncrementFactor;
+	int suffixSampleOffset;
+	int min_mapq;
+	int minAnchorFrequency;
+
 	float mask_level;
 	float pri_ratio;
 	int best_n;      // top best_n chains are subjected to DP alignment

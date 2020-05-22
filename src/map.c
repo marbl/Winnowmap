@@ -295,16 +295,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	int64_t *collect_n_a;
 
 	//stage1: Pre-compute confident read alignments of substrings of input read
-	//parameters set assuming ONT / asm contigs
-	//TODO: Test HiFi
-	constexpr int maxPrefixLength = 32768;
-	constexpr int minPrefixLength = 5000;
-	constexpr float prefixIncrementFactor = 1.6;
-	constexpr int suffixSampleOffset = 2000;
-	constexpr int min_mapq = 5;							//higher cutoff affects runtime
-	constexpr int minAnchorFrequency = 2;		//for stage2: discard infrequent anchors
 
-	int countStartingPositions = std::ceil(qlens[0] * 1.0 / suffixSampleOffset);
+	int countStartingPositions = std::ceil(qlens[0] * 1.0 / opt->suffixSampleOffset);
 
 	collect_a = (mm128_t**)kmalloc(b->km, countStartingPositions * sizeof(mm128_t*)); 
 	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
@@ -317,14 +309,14 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	mm_mapopt_t *opt_f = &opt2;
 	opt_f->best_n = 50; //generate many candidate alignments to improve mapq estimation
 
-	for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += suffixSampleOffset)
+	for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += opt->suffixSampleOffset)
 	{
-		int suffix_id = std::ceil(sub_begin * 1.0 / suffixSampleOffset);	//id of this suffix
+		int suffix_id = std::ceil(sub_begin * 1.0 / opt->suffixSampleOffset);	//id of this suffix
 
 		bool mappingFound = false;
 		int max_mapq_currentPos = 0;
 
-		for (int sub_len = minPrefixLength; sub_len <= maxPrefixLength; sub_len *= prefixIncrementFactor)
+		for (int sub_len = opt->minPrefixLength; sub_len <= opt->maxPrefixLength; sub_len *= opt->prefixIncrementFactor)
 		{
 			//consider 'sub_len' bases to the right
 			if (sub_begin + sub_len <= qlens[0])	//check substring end boundary limit
@@ -437,7 +429,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 					max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
 
 					//Check for high confidence (mapq) and no split
-					if (regs0[j].id == regs0[j].parent && regs0[j].sam_pri && regs0[j].mapq >= min_mapq && regs0[j].blen >= 0.8 * sub_len) 
+					if (regs0[j].id == regs0[j].parent && regs0[j].sam_pri && regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= 0.8 * sub_len) 
 					{
 						mappingFound = true;
 						mostPromisingMapping = j;
@@ -595,7 +587,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 					max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
 
 					//Check for high confidence (mapq) and no split
-					if (regs0[j].id == regs0[j].parent && regs0[j].sam_pri && regs0[j].mapq >= min_mapq && regs0[j].blen >= 0.8 * sub_len) 
+					if (regs0[j].id == regs0[j].parent && regs0[j].sam_pri && regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= 0.8 * sub_len) 
 					{
 						mappingFound = true;
 						mostPromisingMapping = j;
@@ -676,7 +668,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			n_a += collect_n_a[i];
 
 		if (mm_dbg_flag & MM_DBG_POLISH)
-			fprintf(stderr, "PO\tqname: %s, n_a (before filtering and checking for duplicates:%" PRId64 "\n", qname, n_a);
+			fprintf(stderr, "PO\tqname: %s, n_a (before filtering and checking for duplicates) :%" PRId64 "\n", qname, n_a);
 
 		if (n_a)
 		{
@@ -702,7 +694,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 				while (std::tie(a[i].x, a[i].y) == std::tie(a[j].x, a[j].y))
 					j++;
 
-				if (j - i >= minAnchorFrequency)
+				if (j - i >= opt->minAnchorFrequency)
 					a[n_a_unique++] = a[i];
 
 				i = j;
@@ -711,7 +703,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			n_a = n_a_unique;
 
 			if (mm_dbg_flag & MM_DBG_POLISH)
-				fprintf(stderr, "PO\tqname: %s, n_a (after filtering and checking for duplicates:%" PRId64 ", min_cnt:%d\n", qname, n_a, opt_s->min_cnt);
+				fprintf(stderr, "PO\tqname: %s, n_a (after filtering and checking for duplicates) :%" PRId64 ", min_cnt:%d\n", qname, n_a, opt_s->min_cnt);
 
 			//sort anchors by reference position before moving on
 			radix_sort_128x(a, a + n_a);
