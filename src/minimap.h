@@ -127,6 +127,7 @@ typedef struct {
 	int suffixSampleOffset;
 	int min_mapq;
 	int minAnchorFrequency;
+	bool SVaware;
 
 	float mask_level;
 	float pri_ratio;

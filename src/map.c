@@ -309,7 +309,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	mm_mapopt_t *opt_f = &opt2;
 	opt_f->best_n = 50; //generate many candidate alignments to improve mapq estimation
 
-	for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += opt->suffixSampleOffset)
+	for (int sub_begin = 0; sub_begin < qlens[0] && opt->SVaware; sub_begin += opt->suffixSampleOffset)
 	{
 		int suffix_id = std::ceil(sub_begin * 1.0 / opt->suffixSampleOffset);	//id of this suffix
 
@@ -641,7 +641,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 		max_mapq_read = std::max (max_mapq_currentPos, max_mapq_read);
 	}
 
-	if (mm_dbg_flag & MM_DBG_POLISH)
+	if ((mm_dbg_flag & MM_DBG_POLISH) && opt->SVaware)
 		fprintf(stderr, "PO\tqname: %s, max_mapq_read:%d\n", qname, max_mapq_read);
 
 	//define new set of options for next stage
@@ -667,7 +667,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 		for (i = 0; i < countStartingPositions; i++)
 			n_a += collect_n_a[i];
 
-		if (mm_dbg_flag & MM_DBG_POLISH)
+		if ((mm_dbg_flag & MM_DBG_POLISH) && opt->SVaware)
 			fprintf(stderr, "PO\tqname: %s, n_a (before filtering and checking for duplicates) :%" PRId64 "\n", qname, n_a);
 
 		if (n_a)
@@ -718,7 +718,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 		if (!n_a)
 		{
 			//go with the default route
-			if (mm_dbg_flag & MM_DBG_POLISH)
+			if ((mm_dbg_flag & MM_DBG_POLISH) && opt->SVaware)
 				fprintf(stderr, "PO\tfalling back to default mapping algorithm for read: %s\n", qname);
 
 			//revert to original parameters

@@ -50,13 +50,13 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->pe_bonus = 33;
 
 	//prefix settings specific for ultra-long ONT / asm-to-asm modes
-	//TODO: separate CLR (and other modes that are not supported)
 	opt->maxPrefixLength = 32768;
 	opt->minPrefixLength = 5000;
 	opt->suffixSampleOffset = 2000;
 	opt->prefixIncrementFactor = 1.6;
 	opt->min_mapq = 5;
 	opt->minAnchorFrequency = 2;
+	opt->SVaware = true;
 }
 
 void mm_mapopt_update(mm_mapopt_t *opt, const mm_idx_t *mi)
@@ -95,12 +95,8 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mo->min_chain_score = 100, mo->pri_ratio = 0.0f, mo->max_gap = 10000, mo->max_chain_skip = 25;
 	} else if (strcmp(preset, "map10k") == 0 || strcmp(preset, "map-pb") == 0) {
 		io->flag |= MM_I_HPC, io->k = 19;
-
-		//prefix settings specific for hifi reads
-		//TODO: separate CLR (and other modes that are not supported)
-		mo->maxPrefixLength = 3276;
-		mo->minPrefixLength = 500;
-		mo->suffixSampleOffset = 200;
+		//keep using simple algorithm for HiFi / CLR reads
+		mo->SVaware = false;
 	} else if (strcmp(preset, "map-ont") == 0) {
 		io->flag = 0, io->k = 15;
 	} else if (strcmp(preset, "asm5") == 0) {

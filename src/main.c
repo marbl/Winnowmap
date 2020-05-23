@@ -373,6 +373,9 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded/built the index for %d target sequence(s)\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), mi->n_seq);
 		if (argc != o.ind + 1) mm_mapopt_update(&opt, mi);
+		if (opt.SVaware)
+			fprintf(stderr, "[M::%s::%.3f*%.2f] running winnowmap in SV-aware mode\n",
+					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
 		if (mm_verbose >= 3) mm_idx_stat(mi);
 		if (junc_bed) mm_idx_bed_read(mi, junc_bed, 1);
 		if (!(opt.flag & MM_F_FRAG_MODE)) {
