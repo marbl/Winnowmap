@@ -24,7 +24,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 	meryl count k=15 output merylDB_k15 ref.fa
 	meryl print greater-than distinct=0.9998 merylDB_k15 > bad_k15_mers.txt
 
-	winnowmap -W bad_k15_mers.txt -cx map-ont ref.fa ont.fq.gz > output.paf
+	winnowmap -W bad_k15_mers.txt -ax map-ont ref.fa ont.fq.gz > output.sam
   ```
   Except the `-W` parameter above needed by Winnowmap, the remaining options are consistent with [minimap2 usage](https://github.com/lh3/minimap2/blob/a79cb3e9912a89d823a90b3502f57798afe299f8/README.md).
 
@@ -34,7 +34,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 	meryl count compress k=19 output merylDB_Hk19 ref.fa
 	meryl print greater-than distinct=0.9998 merylDB_Hk19 > bad_Hk19_mers.txt
 
-	winnowmap -W bad_Hk19_mers.txt -cx map-pb ref.fa pacbio.fq.gz > output.paf
+	winnowmap -W bad_Hk19_mers.txt -ax map-pb ref.fa pacbio.fq.gz > output.sam
   ```
 
 *  Mapping genome assemblies
@@ -43,11 +43,11 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 	meryl count k=19 output merylDB_k19 asm1.fa
 	meryl print greater-than distinct=0.9998 merylDB_k19 > bad_k19_mers.txt
 
-	winnowmap -W bad_k19_mers.txt -cx asm20 asm1.fa asm2.fa > output.paf
+	winnowmap -W bad_k19_mers.txt -ax asm20 asm1.fa asm2.fa > output.sam
   ```
-  In this case, it may be useful to visualize the genome-to-genome dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts) can be used to generate a dot plot from paf-formatted output.
+  In this case, it may be useful to visualize the genome-to-genome dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts) can be used to generate a dot plot from [paf](https://github.com/lh3/miniasm/blob/master/PAF.md)-formatted output.
 
-  In all the three use-cases, the k-mer counting step using meryl is kept consistent with the  mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is consistent with `map-ont` and `map-pb` presets of minimap2. In all use-cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
+  In all the three use-cases, the k-mer counting step using meryl is kept consistent with the  mapping step. For example, ONT reads are mapped with k-mer length 15, where as PacBio reads are mapped with homopolymer-compressed k-mers of length 19. This is consistent with `map-ont` and `map-pb` presets of minimap2. Pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference. 
 
 ## Benchmarking
 
