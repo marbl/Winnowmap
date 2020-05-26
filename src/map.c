@@ -287,7 +287,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	km_stat_t kmst;
 
 	//TODO: generalize this to n_segs > 1
-	assert (n_segs == 1);		//deal with long reads only
+	assert (n_segs == 1);		//deal with long reads (or asm contigs) only
 	int* sub_qlens = (int *)kmalloc(b->km, 1 * sizeof(int));
 	char **sub_seqs = (char **) kmalloc(b->km, 1 * sizeof(char*));
 	sub_seqs[0] = (char *)kmalloc(b->km, qlens[0] * sizeof(char));
@@ -466,7 +466,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 					}
 				}
 
-				for (i = 0; i < n_segs; ++i) {free (regs[i]);} //delete mapping results 
+				for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
+				free (regs0);
 				kfree(b->km, mv.a);
 				kfree(b->km, a);
 				kfree(b->km, u);
@@ -624,7 +625,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 					}
 				}
 
-				for (i = 0; i < n_segs; ++i) {free (regs[i]);} //delete mapping results 
+				for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
+				free (regs0);
 				kfree(b->km, mv.a);
 				kfree(b->km, a);
 				kfree(b->km, u);
