@@ -374,8 +374,16 @@ int main(int argc, char *argv[])
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), mi->n_seq);
 		if (argc != o.ind + 1) mm_mapopt_update(&opt, mi);
 		if (opt.SVaware)
+		{
 			fprintf(stderr, "[M::%s::%.3f*%.2f] running winnowmap in SV-aware mode\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
+			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters min:%d, inc:%0.1f, max:%d, sample:%d, min-qcov:%0.1f, min-mapq:%d\n",
+					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
+					opt.minPrefixLength, opt.prefixIncrementFactor, opt.maxPrefixLength, opt.suffixSampleOffset, opt.min_qcov, opt.min_mapq);
+			fprintf(stderr, "[M::%s::%.3f*%.2f] stage2-specific parameters s2_maxiter:%d, s2_bw:%d, s2_maxgap:%d, s2_zdropinv:%d\n",
+					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
+					opt.stage2_max_chain_iter, opt.stage2_bw, opt.stage2_max_gap, opt.stage2_zdrop_inv);
+		}
 		if (mm_verbose >= 3) mm_idx_stat(mi);
 		if (junc_bed) mm_idx_bed_read(mi, junc_bed, 1);
 		if (!(opt.flag & MM_F_FRAG_MODE)) {

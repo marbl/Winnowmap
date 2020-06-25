@@ -22,7 +22,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->min_chain_score = 40;
 	opt->bw = 500;
 	opt->max_gap = 5000;
-	opt->min_gap_ref = 1000;	//TODO: check if this is okay for all presets
+	opt->min_gap_ref = 1000; //introduced to avoid chain breaks in repeats
 	opt->max_gap_ref = -1;
 	opt->max_chain_skip = 25;
 	opt->max_chain_iter = 5000;
@@ -50,13 +50,19 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->pe_bonus = 33;
 
 	//prefix settings specific for ultra-long ONT / asm-to-asm modes
-	opt->maxPrefixLength = 32768;
-	opt->minPrefixLength = 5000;
-	opt->suffixSampleOffset = 2000;
-	opt->prefixIncrementFactor = 1.6;
+	opt->maxPrefixLength = 16384;
+	opt->minPrefixLength = 1000;
+	opt->suffixSampleOffset = 1000; //reducing sampling offset increases sensitivity & runtime
+	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1)/ opt->minPrefixLength, 0.5);
 	opt->min_mapq = 5;
-	opt->minAnchorFrequency = 2;
+	opt->min_qcov = 0.5;
 	opt->SVaware = true;
+
+	//these parameters override defaults & user settings if those are less sensitive
+	opt->stage2_max_chain_iter = 50000; //few anchors to process in stage 2
+	opt->stage2_bw = 10000;
+	opt->stage2_zdrop_inv = 25;
+	opt->stage2_max_gap = 10000;
 }
 
 void mm_mapopt_update(mm_mapopt_t *opt, const mm_idx_t *mi)

@@ -126,8 +126,10 @@ typedef struct {
 	float prefixIncrementFactor;
 	int suffixSampleOffset;
 	int min_mapq;
-	int minAnchorFrequency;
+	float min_qcov;
 	bool SVaware;
+	int stage2_max_chain_iter, stage2_bw, stage2_max_gap, stage2_zdrop_inv;
+
 
 	float mask_level;
 	float pri_ratio;
