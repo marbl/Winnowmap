@@ -1,4 +1,4 @@
-CPPFLAGS= -DHAVE_KALLOC -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable
+CPPFLAGS= -DHAVE_KALLOC -fopenmp -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable
 LIBS= -lm -lz -lpthread
 
 # Assuming git submodules were cloned previously

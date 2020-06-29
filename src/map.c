@@ -5,6 +5,8 @@
 #include <cinttypes>
 #include <algorithm>
 #include <tuple>
+#include <omp.h>
+#include <iostream>
 #include "kthread.h"
 #include "kvec.h"
 #include "kalloc.h"
@@ -85,12 +87,12 @@ static void collect_minimizers(void *km, const mm_mapopt_t *opt, const mm_idx_t 
 #define heap_lt(a, b) ((a).x > (b).x)
 KSORT_INIT(heap, mm128_t, heap_lt)
 
-typedef struct {
-	uint32_t n;
-	uint32_t q_pos, q_span;
-	uint32_t seg_id:31, is_tandem:1;
-	const uint64_t *cr;
-} mm_match_t;
+	typedef struct {
+		uint32_t n;
+		uint32_t q_pos, q_span;
+		uint32_t seg_id:31, is_tandem:1;
+		const uint64_t *cr;
+	} mm_match_t;
 
 static mm_match_t *collect_matches(void *km, int *_n_m, int max_occ, const mm_idx_t *mi, const mm128_v *mv, int64_t *n_a, int *rep_len, int *n_mini_pos, uint64_t **mini_pos)
 {
@@ -152,7 +154,7 @@ static inline int skip_seed(int flag, uint64_t r, const mm_match_t *q, const cha
 }
 
 static mm128_t *collect_seed_hits_heap(void *km, const mm_mapopt_t *opt, int max_occ, const mm_idx_t *mi, const char *qname, const mm128_v *mv, int qlen, int64_t *n_a, int *rep_len,
-								  int *n_mini_pos, uint64_t **mini_pos)
+		int *n_mini_pos, uint64_t **mini_pos)
 {
 	int i, n_m, heap_size = 0;
 	int64_t j, n_for = 0, n_rev = 0;
@@ -218,7 +220,7 @@ static mm128_t *collect_seed_hits_heap(void *km, const mm_mapopt_t *opt, int max
 }
 
 static mm128_t *collect_seed_hits(void *km, const mm_mapopt_t *opt, int max_occ, const mm_idx_t *mi, const char *qname, const mm128_v *mv, int qlen, int64_t *n_a, int *rep_len,
-								  int *n_mini_pos, uint64_t **mini_pos)
+		int *n_mini_pos, uint64_t **mini_pos)
 {
 	int i, n_m;
 	mm_match_t *m;
@@ -288,362 +290,387 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 
 	//TODO: generalize this to n_segs > 1
 	assert (n_segs == 1);		//deal with long reads (or asm contigs) only
-	int* sub_qlens = (int *)kmalloc(b->km, 1 * sizeof(int));
-	char **sub_seqs = (char **) kmalloc(b->km, 1 * sizeof(char*));
-	sub_seqs[0] = (char *)kmalloc(b->km, qlens[0] * sizeof(char));
 	mm128_t **collect_a;
 	int64_t *collect_n_a;
+	mm_tbuf_t *b_master = b; //buffer for main thread entering this function
 
 	//stage1: Pre-compute confident read alignments of substrings of input read
 
 	int countStartingPositions = std::ceil(qlens[0] * 1.0 / opt->suffixSampleOffset);
-
 	collect_a = (mm128_t**)kmalloc(b->km, countStartingPositions * sizeof(mm128_t*)); 
 	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
 	memset(collect_n_a, 0, countStartingPositions * sizeof(int64_t));
-	int max_mapq_read = 0;
 
 	//define new set of options for first stage
 	//generate many candidate alignments to improve mapq estimation
 	mm_mapopt_t opt2 = *opt;
 	mm_mapopt_t *opt_2 = &opt2;
 
-	for (int sub_begin = 0; sub_begin < qlens[0] && opt->SVaware; sub_begin += opt->suffixSampleOffset)
+	if (opt->SVaware)
 	{
-		int suffix_id = std::ceil(sub_begin * 1.0 / opt->suffixSampleOffset);	//id of this suffix
-
-		bool mappingFound = false;
-		int max_mapq_currentPos = 0;
-
-		for (int sub_len = opt->minPrefixLength; sub_len <= opt->maxPrefixLength; sub_len *= opt->prefixIncrementFactor)
+		//parallelize single read alignment further for better load balance
+#pragma omp parallel num_threads(3)
 		{
-			//consider 'sub_len' bases to the right
-			if (sub_begin + sub_len <= qlens[0])	//check substring end boundary limit
+			//make all these variables private to openmp thread by redefining them
+			int i, j, rep_len, qlen_sum, n_regs0, n_mini_pos;
+			uint32_t hash;
+			int64_t n_a;
+			uint64_t *u, *mini_pos;
+			mm128_t *a;
+			mm128_v mv = {0,0,0};
+			mm_reg1_t *regs0;
+			mm_tbuf_t *b = (mm_tbuf_t*)calloc(1, sizeof(mm_tbuf_t)); //omp thread local buffer
+			b->km = km_init();
+			int* sub_qlens = (int *)kmalloc(b->km, 1 * sizeof(int));
+			char **sub_seqs = (char **) kmalloc(b->km, 1 * sizeof(char*));
+			sub_seqs[0] = (char *)kmalloc(b->km, qlens[0] * sizeof(char));
+
+#pragma omp for schedule(dynamic)
+			for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += opt->suffixSampleOffset)
 			{
-				mv = {0,0,0};
-				sub_qlens[0] = sub_len;
-				memcpy (sub_seqs[0], &(seqs[0][sub_begin]), sub_len);
+				int suffix_id = std::ceil(sub_begin * 1.0 / opt->suffixSampleOffset);	//id of this suffix
 
-				for (i = 0, qlen_sum = 0; i < n_segs; ++i)
-					qlen_sum += sub_qlens[i], n_regs[i] = 0, regs[i] = 0, n_regs0 = 0;
+				bool mappingFound = false;
+				int max_mapq_currentPos = 0;
 
-				if (qlen_sum == 0 || n_segs <= 0 || n_segs > MM_MAX_SEG) return;
-				if (opt_2->max_qlen > 0 && qlen_sum > opt_2->max_qlen) return;
+				for (int sub_len = opt->minPrefixLength; sub_len <= opt->maxPrefixLength; sub_len *= opt->prefixIncrementFactor)
+				{
+					//consider 'sub_len' bases to the right
+					if (sub_begin + sub_len <= qlens[0])	//check substring end boundary limit
+					{
+						mv = {0,0,0};
+						sub_qlens[0] = sub_len;
+						memcpy (sub_seqs[0], &(seqs[0][sub_begin]), sub_len);
 
-				hash  = qname? __ac_X31_hash_string(qname) : 0;
-				hash ^= __ac_Wang_hash(qlen_sum) + __ac_Wang_hash(opt_2->seed);
-				hash  = __ac_Wang_hash(hash);
+						for (i = 0, qlen_sum = 0; i < n_segs; ++i)
+							qlen_sum += sub_qlens[i], n_regs[i] = 0, regs[i] = 0, n_regs0 = 0;
 
-				collect_minimizers(b->km, opt_2, mi, n_segs, sub_qlens, sub_seqs, &mv);
-				if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-				else a = collect_seed_hits(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+						if (qlen_sum == 0 || n_segs <= 0 || n_segs > MM_MAX_SEG) break;
+						if (opt_2->max_qlen > 0 && qlen_sum > opt_2->max_qlen) break;
 
-				if (mm_dbg_flag & MM_DBG_PRINT_SEED) {
-					fprintf(stderr, "RS\t%d\n", rep_len);
-					for (i = 0; i < n_a; ++i)
-						fprintf(stderr, "SD\t%s\t%d\t%c\t%d\t%d\t%d\n", mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
-								i == 0? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
-				}
+						hash  = qname? __ac_X31_hash_string(qname) : 0;
+						hash ^= __ac_Wang_hash(qlen_sum) + __ac_Wang_hash(opt_2->seed);
+						hash  = __ac_Wang_hash(hash);
 
-				// set max chaining gap on the query and the reference sequence
-				if (is_sr)
-					max_chain_gap_qry = qlen_sum > opt_2->max_gap? qlen_sum : opt_2->max_gap;
-				else max_chain_gap_qry = opt_2->max_gap;
+						collect_minimizers(b->km, opt_2, mi, n_segs, sub_qlens, sub_seqs, &mv);
+						if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+						else a = collect_seed_hits(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
 
-				if (opt_2->max_gap_ref > 0) {
-					max_chain_gap_ref = opt_2->max_gap_ref; // always honor mm_mapopt_2_t::max_gap_ref if set
-				} else if (opt_2->max_frag_len > 0) {
-					max_chain_gap_ref = opt_2->max_frag_len - qlen_sum;
-					if (max_chain_gap_ref < opt_2->max_gap) max_chain_gap_ref = opt_2->max_gap;
-				} else max_chain_gap_ref = opt_2->max_gap;
-
-				if (opt_2->min_gap_ref < max_chain_gap_ref)
-					min_chain_gap_ref = opt_2->min_gap_ref;
-				else min_chain_gap_ref = max_chain_gap_ref;
-
-				a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
-
-				if (opt_2->max_occ > opt_2->mid_occ && rep_len > 0) {
-					int rechain = 0;
-					if (n_regs0 > 0) { // test if the best chain has all the segments
-						int n_chained_segs = 1, max = 0, max_i = -1, max_off = -1, off = 0;
-						for (i = 0; i < n_regs0; ++i) { // find the best chain
-							if (max < (int)(u[i]>>32)) max = u[i]>>32, max_i = i, max_off = off;
-							off += (uint32_t)u[i];
+						if (mm_dbg_flag & MM_DBG_PRINT_SEED) {
+							fprintf(stderr, "RS\t%d\n", rep_len);
+							for (i = 0; i < n_a; ++i)
+								fprintf(stderr, "SD\t%s\t%d\t%c\t%d\t%d\t%d\n", mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
+										i == 0? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
 						}
-						for (i = 1; i < (int32_t)u[max_i]; ++i) // count the number of segments in the best chain
-							if ((a[max_off+i].y&MM_SEED_SEG_MASK) != (a[max_off+i-1].y&MM_SEED_SEG_MASK))
-								++n_chained_segs;
-						if (n_chained_segs < n_segs)
-							rechain = 1;
-					} else rechain = 1;
-					if (rechain) { // redo chaining with a higher max_occ threshold
+
+						// set max chaining gap on the query and the reference sequence
+						if (is_sr)
+							max_chain_gap_qry = qlen_sum > opt_2->max_gap? qlen_sum : opt_2->max_gap;
+						else max_chain_gap_qry = opt_2->max_gap;
+
+						if (opt_2->max_gap_ref > 0) {
+							max_chain_gap_ref = opt_2->max_gap_ref; // always honor mm_mapopt_2_t::max_gap_ref if set
+						} else if (opt_2->max_frag_len > 0) {
+							max_chain_gap_ref = opt_2->max_frag_len - qlen_sum;
+							if (max_chain_gap_ref < opt_2->max_gap) max_chain_gap_ref = opt_2->max_gap;
+						} else max_chain_gap_ref = opt_2->max_gap;
+
+						if (opt_2->min_gap_ref < max_chain_gap_ref)
+							min_chain_gap_ref = opt_2->min_gap_ref;
+						else min_chain_gap_ref = max_chain_gap_ref;
+
+						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+
+						if (opt_2->max_occ > opt_2->mid_occ && rep_len > 0) {
+							int rechain = 0;
+							if (n_regs0 > 0) { // test if the best chain has all the segments
+								int n_chained_segs = 1, max = 0, max_i = -1, max_off = -1, off = 0;
+								for (i = 0; i < n_regs0; ++i) { // find the best chain
+									if (max < (int)(u[i]>>32)) max = u[i]>>32, max_i = i, max_off = off;
+									off += (uint32_t)u[i];
+								}
+								for (i = 1; i < (int32_t)u[max_i]; ++i) // count the number of segments in the best chain
+									if ((a[max_off+i].y&MM_SEED_SEG_MASK) != (a[max_off+i-1].y&MM_SEED_SEG_MASK))
+										++n_chained_segs;
+								if (n_chained_segs < n_segs)
+									rechain = 1;
+							} else rechain = 1;
+							if (rechain) { // redo chaining with a higher max_occ threshold
+								kfree(b->km, a);
+								kfree(b->km, u);
+								kfree(b->km, mini_pos);
+								if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+								else a = collect_seed_hits(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+								a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+							}
+						}
+						b->frag_gap = max_chain_gap_ref;
+						b->rep_len = rep_len;
+
+						regs0 = mm_gen_regs(b->km, hash, qlen_sum, n_regs0, u, a);
+
+						if (mm_dbg_flag & MM_DBG_PRINT_SEED)
+							for (j = 0; j < n_regs0; ++j)
+								for (i = regs0[j].as; i < regs0[j].as + regs0[j].cnt; ++i)
+									fprintf(stderr, "CN\t%d\t%s\t%d\t%c\t%d\t%d\t%d\n", j, mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
+											i == regs0[j].as? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
+
+						chain_post(opt_2, max_chain_gap_ref, mi, b->km, qlen_sum, n_segs, qlens, &n_regs0, regs0, a);
+						if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);
+
+						if (n_segs == 1) { // uni-segment
+							regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a);
+							mm_set_mapq(b->km, n_regs0, regs0, opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
+							n_regs[0] = n_regs0, regs[0] = regs0;
+						} else { // multi-segment
+							mm_seg_t *seg;
+							seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
+							free(regs0);
+							for (i = 0; i < n_segs; ++i) {
+								mm_set_parent(b->km, opt_2->mask_level, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
+								regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
+								mm_set_mapq(b->km, n_regs[i], regs[i], opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
+							}
+							mm_seg_free(b->km, n_segs, seg);
+							if (n_segs == 2 && opt_2->pe_ori >= 0 && (opt_2->flag&MM_F_CIGAR))
+								mm_pair(b->km, max_chain_gap_ref, opt_2->pe_bonus, opt_2->a * 2 + opt_2->b, opt_2->a, qlens, n_regs, regs); // pairing
+						}
+
+						int mostPromisingMapping = -1;
+						int max_mapq_fragment = 0;
+
+						//For valid mapping, save anchors 
+						for (j = 0; j < n_regs0; ++j)
+						{
+							max_mapq_fragment = std::max ((int32_t)regs0[j].mapq, max_mapq_fragment);
+							max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
+
+							//Check for high confidence (mapq), length
+							if (regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= opt->min_qcov * sub_len && regs0[j].cnt > 0)
+							{
+								mappingFound = true;
+								mostPromisingMapping = j;
+								collect_n_a[suffix_id] = regs0[j].cnt;
+
+								if (mm_dbg_flag & MM_DBG_POLISH)
+									fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+
+								break;		
+							}
+						}
+
+						if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
+							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, sub_len, max_mapq_fragment, n_regs0);
+
+						if (mappingFound)
+						{
+							assert (collect_n_a[suffix_id] > 0);
+							assert (mostPromisingMapping >= 0);
+
+#pragma omp critical
+							{
+								collect_a[suffix_id] = (mm128_t*)kmalloc(b_master->km, collect_n_a[suffix_id] * sizeof(mm128_t));
+							}
+							j = mostPromisingMapping;
+
+							for (i = 0; i < regs0[j].cnt; ++i)
+							{
+								mm128_t _a_ = a[i + regs0[j].as];
+
+								//correct coordinates of each anchor while storing
+								if (_a_.x >> 63) //reverse strand 
+									_a_.y += (qlens[0] - sub_begin - sub_len);
+								else
+									_a_.y += sub_begin;
+								collect_a[suffix_id][i] = _a_;					
+							}
+						}
+
+						for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
+						free (regs0);
+						kfree(b->km, mv.a);
 						kfree(b->km, a);
 						kfree(b->km, u);
 						kfree(b->km, mini_pos);
-						if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-						else a = collect_seed_hits(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+
+						if (mappingFound || !n_regs0)
+							break;		// mappingFound-> found shortest prefix; !n_regs0-> no candidate
 					}
-				}
-				b->frag_gap = max_chain_gap_ref;
-				b->rep_len = rep_len;
 
-				regs0 = mm_gen_regs(b->km, hash, qlen_sum, n_regs0, u, a);
-
-				if (mm_dbg_flag & MM_DBG_PRINT_SEED)
-					for (j = 0; j < n_regs0; ++j)
-						for (i = regs0[j].as; i < regs0[j].as + regs0[j].cnt; ++i)
-							fprintf(stderr, "CN\t%d\t%s\t%d\t%c\t%d\t%d\t%d\n", j, mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
-									i == regs0[j].as? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
-
-				chain_post(opt_2, max_chain_gap_ref, mi, b->km, qlen_sum, n_segs, qlens, &n_regs0, regs0, a);
-				if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);
-
-				if (n_segs == 1) { // uni-segment
-					regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a);
-					mm_set_mapq(b->km, n_regs0, regs0, opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
-					n_regs[0] = n_regs0, regs[0] = regs0;
-				} else { // multi-segment
-					mm_seg_t *seg;
-					seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
-					free(regs0);
-					for (i = 0; i < n_segs; ++i) {
-						mm_set_parent(b->km, opt_2->mask_level, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
-						regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
-						mm_set_mapq(b->km, n_regs[i], regs[i], opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
-					}
-					mm_seg_free(b->km, n_segs, seg);
-					if (n_segs == 2 && opt_2->pe_ori >= 0 && (opt_2->flag&MM_F_CIGAR))
-						mm_pair(b->km, max_chain_gap_ref, opt_2->pe_bonus, opt_2->a * 2 + opt_2->b, opt_2->a, qlens, n_regs, regs); // pairing
-				}
-
-				int mostPromisingMapping = -1;
-				int max_mapq_fragment = 0;
-
-				//For valid mapping, save anchors 
-				for (j = 0; j < n_regs0; ++j)
-				{
-					max_mapq_fragment = std::max ((int32_t)regs0[j].mapq, max_mapq_fragment);
-					max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
-
-					//Check for high confidence (mapq), length
-					if (regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= opt->min_qcov * sub_len && regs0[j].cnt > 0)
+					//consider 'sub_len' bases to the left
+					if (sub_begin - sub_len + 1 >= 0)			//check substring start boundary limit
 					{
-						mappingFound = true;
-						mostPromisingMapping = j;
-						collect_n_a[suffix_id] = regs0[j].cnt;
+						mv = {0,0,0};
+						sub_qlens[0] = sub_len;
+						memcpy (sub_seqs[0], &(seqs[0][sub_begin - sub_len +1]), sub_len);
 
-						if (mm_dbg_flag & MM_DBG_POLISH)
-							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+						for (i = 0, qlen_sum = 0; i < n_segs; ++i)
+							qlen_sum += sub_qlens[i], n_regs[i] = 0, regs[i] = 0, n_regs0 = 0;
 
-						break;		
+						if (qlen_sum == 0 || n_segs <= 0 || n_segs > MM_MAX_SEG) break;
+						if (opt_2->max_qlen > 0 && qlen_sum > opt_2->max_qlen) break;
+
+						hash  = qname? __ac_X31_hash_string(qname) : 0;
+						hash ^= __ac_Wang_hash(qlen_sum) + __ac_Wang_hash(opt_2->seed);
+						hash  = __ac_Wang_hash(hash);
+
+						collect_minimizers(b->km, opt_2, mi, n_segs, sub_qlens, sub_seqs, &mv);
+						if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+						else a = collect_seed_hits(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+
+						if (mm_dbg_flag & MM_DBG_PRINT_SEED) {
+							fprintf(stderr, "RS\t%d\n", rep_len);
+							for (i = 0; i < n_a; ++i)
+								fprintf(stderr, "SD\t%s\t%d\t%c\t%d\t%d\t%d\n", mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
+										i == 0? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
+						}
+
+						// set max chaining gap on the query and the reference sequence
+						if (is_sr)
+							max_chain_gap_qry = qlen_sum > opt_2->max_gap? qlen_sum : opt_2->max_gap;
+						else max_chain_gap_qry = opt_2->max_gap;
+
+						if (opt_2->max_gap_ref > 0) {
+							max_chain_gap_ref = opt_2->max_gap_ref; // always honor mm_mapopt_2_t::max_gap_ref if set
+						} else if (opt_2->max_frag_len > 0) {
+							max_chain_gap_ref = opt_2->max_frag_len - qlen_sum;
+							if (max_chain_gap_ref < opt_2->max_gap) max_chain_gap_ref = opt_2->max_gap;
+						} else max_chain_gap_ref = opt_2->max_gap;
+
+						if (opt_2->min_gap_ref < max_chain_gap_ref)
+							min_chain_gap_ref = opt_2->min_gap_ref;
+						else min_chain_gap_ref = max_chain_gap_ref;
+
+						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+
+						if (opt_2->max_occ > opt_2->mid_occ && rep_len > 0) {
+							int rechain = 0;
+							if (n_regs0 > 0) { // test if the best chain has all the segments
+								int n_chained_segs = 1, max = 0, max_i = -1, max_off = -1, off = 0;
+								for (i = 0; i < n_regs0; ++i) { // find the best chain
+									if (max < (int)(u[i]>>32)) max = u[i]>>32, max_i = i, max_off = off;
+									off += (uint32_t)u[i];
+								}
+								for (i = 1; i < (int32_t)u[max_i]; ++i) // count the number of segments in the best chain
+									if ((a[max_off+i].y&MM_SEED_SEG_MASK) != (a[max_off+i-1].y&MM_SEED_SEG_MASK))
+										++n_chained_segs;
+								if (n_chained_segs < n_segs)
+									rechain = 1;
+							} else rechain = 1;
+							if (rechain) { // redo chaining with a higher max_occ threshold
+								kfree(b->km, a);
+								kfree(b->km, u);
+								kfree(b->km, mini_pos);
+								if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+								else a = collect_seed_hits(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
+								a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+							}
+						}
+						b->frag_gap = max_chain_gap_ref;
+						b->rep_len = rep_len;
+
+						regs0 = mm_gen_regs(b->km, hash, qlen_sum, n_regs0, u, a);
+
+						if (mm_dbg_flag & MM_DBG_PRINT_SEED)
+							for (j = 0; j < n_regs0; ++j)
+								for (i = regs0[j].as; i < regs0[j].as + regs0[j].cnt; ++i)
+									fprintf(stderr, "CN\t%d\t%s\t%d\t%c\t%d\t%d\t%d\n", j, mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
+											i == regs0[j].as? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
+
+						chain_post(opt_2, max_chain_gap_ref, mi, b->km, qlen_sum, n_segs, qlens, &n_regs0, regs0, a);
+						if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);
+
+						if (n_segs == 1) { // uni-segment
+							regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a);
+							mm_set_mapq(b->km, n_regs0, regs0, opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
+							n_regs[0] = n_regs0, regs[0] = regs0;
+						} else { // multi-segment
+							mm_seg_t *seg;
+							seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
+							free(regs0);
+							for (i = 0; i < n_segs; ++i) {
+								mm_set_parent(b->km, opt_2->mask_level, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
+								regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
+								mm_set_mapq(b->km, n_regs[i], regs[i], opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
+							}
+							mm_seg_free(b->km, n_segs, seg);
+							if (n_segs == 2 && opt_2->pe_ori >= 0 && (opt_2->flag&MM_F_CIGAR))
+								mm_pair(b->km, max_chain_gap_ref, opt_2->pe_bonus, opt_2->a * 2 + opt_2->b, opt_2->a, qlens, n_regs, regs); // pairing
+						}
+
+						int mostPromisingMapping = -1;
+						int max_mapq_fragment = 0;
+
+						//For valid mapping, save anchors 
+						for (j = 0; j < n_regs0; ++j)
+						{
+							max_mapq_fragment = std::max ((int32_t)regs0[j].mapq, max_mapq_fragment);
+							max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
+
+							//Check for high confidence (mapq), length
+							if (regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= opt->min_qcov * sub_len && regs0[j].cnt > 0)
+							{
+								mappingFound = true;
+								mostPromisingMapping = j;
+								collect_n_a[suffix_id] = regs0[j].cnt;
+
+								if (mm_dbg_flag & MM_DBG_POLISH)
+									fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+
+								break;	
+							}
+						}
+
+						if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
+							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, -1 * sub_len, max_mapq_fragment, n_regs0);
+
+						if (mappingFound)
+						{
+							assert (collect_n_a[suffix_id] > 0);
+							assert (mostPromisingMapping >= 0);
+
+#pragma omp critical
+							{
+								collect_a[suffix_id] = (mm128_t*)kmalloc(b_master->km, collect_n_a[suffix_id] * sizeof(mm128_t));
+							}
+							j = mostPromisingMapping;
+
+							for (i = 0; i < regs0[j].cnt; ++i)
+							{
+								mm128_t _a_ = a[i + regs0[j].as];
+
+								//correct coordinates of each anchor while storing
+								if (_a_.x >> 63) //reverse strand 
+									_a_.y += (qlens[0]-1) - sub_begin;  
+								else
+									_a_.y += sub_begin - sub_len + 1;		//offset of first base of substring
+								collect_a[suffix_id][i] = _a_;					
+							}
+						}
+
+						for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
+						free (regs0);
+						kfree(b->km, mv.a);
+						kfree(b->km, a);
+						kfree(b->km, u);
+						kfree(b->km, mini_pos);
+
+						if (mappingFound || !n_regs0)
+							break;		// mappingFound-> found shortest prefix; !n_regs0-> no candidate
 					}
 				}
 
 				if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
-					fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, sub_len, max_mapq_fragment, n_regs0);
-
-				if (mappingFound)
-				{
-					assert (collect_n_a[suffix_id] > 0);
-					assert (mostPromisingMapping >= 0);
-
-					collect_a[suffix_id] = (mm128_t*)kmalloc(b->km, collect_n_a[suffix_id] * sizeof(mm128_t));
-					j = mostPromisingMapping;
-
-					for (i = 0; i < regs0[j].cnt; ++i)
-					{
-						mm128_t _a_ = a[i + regs0[j].as];
-
-						//correct coordinates of each anchor while storing
-						if (_a_.x >> 63) //reverse strand 
-							_a_.y += (qlens[0] - sub_begin - sub_len);
-						else
-							_a_.y += sub_begin;
-						collect_a[suffix_id][i] = _a_;					
-					}
-				}
-
-				for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
-				free (regs0);
-				kfree(b->km, mv.a);
-				kfree(b->km, a);
-				kfree(b->km, u);
-				kfree(b->km, mini_pos);
-
-				if (mappingFound || !n_regs0)
-					break;		// mappingFound-> found shortest prefix; !n_regs0-> no candidate
+					fprintf(stderr, "PO\tqname:%s, begin:%d, max_mapq_currentPos:%d [NONE FOUND] \n", qname, sub_begin, max_mapq_currentPos);
 			}
 
-			//consider 'sub_len' bases to the left
-			if (sub_begin - sub_len + 1 >= 0)			//check substring start boundary limit
-			{
-				mv = {0,0,0};
-				sub_qlens[0] = sub_len;
-				memcpy (sub_seqs[0], &(seqs[0][sub_begin - sub_len +1]), sub_len);
-
-				for (i = 0, qlen_sum = 0; i < n_segs; ++i)
-					qlen_sum += sub_qlens[i], n_regs[i] = 0, regs[i] = 0, n_regs0 = 0;
-
-				if (qlen_sum == 0 || n_segs <= 0 || n_segs > MM_MAX_SEG) return;
-				if (opt_2->max_qlen > 0 && qlen_sum > opt_2->max_qlen) return;
-
-				hash  = qname? __ac_X31_hash_string(qname) : 0;
-				hash ^= __ac_Wang_hash(qlen_sum) + __ac_Wang_hash(opt_2->seed);
-				hash  = __ac_Wang_hash(hash);
-
-				collect_minimizers(b->km, opt_2, mi, n_segs, sub_qlens, sub_seqs, &mv);
-				if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-				else a = collect_seed_hits(b->km, opt_2, opt_2->mid_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-
-				if (mm_dbg_flag & MM_DBG_PRINT_SEED) {
-					fprintf(stderr, "RS\t%d\n", rep_len);
-					for (i = 0; i < n_a; ++i)
-						fprintf(stderr, "SD\t%s\t%d\t%c\t%d\t%d\t%d\n", mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
-								i == 0? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
-				}
-
-				// set max chaining gap on the query and the reference sequence
-				if (is_sr)
-					max_chain_gap_qry = qlen_sum > opt_2->max_gap? qlen_sum : opt_2->max_gap;
-				else max_chain_gap_qry = opt_2->max_gap;
-
-				if (opt_2->max_gap_ref > 0) {
-					max_chain_gap_ref = opt_2->max_gap_ref; // always honor mm_mapopt_2_t::max_gap_ref if set
-				} else if (opt_2->max_frag_len > 0) {
-					max_chain_gap_ref = opt_2->max_frag_len - qlen_sum;
-					if (max_chain_gap_ref < opt_2->max_gap) max_chain_gap_ref = opt_2->max_gap;
-				} else max_chain_gap_ref = opt_2->max_gap;
-
-				if (opt_2->min_gap_ref < max_chain_gap_ref)
-					min_chain_gap_ref = opt_2->min_gap_ref;
-				else min_chain_gap_ref = max_chain_gap_ref;
-
-				a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
-
-				if (opt_2->max_occ > opt_2->mid_occ && rep_len > 0) {
-					int rechain = 0;
-					if (n_regs0 > 0) { // test if the best chain has all the segments
-						int n_chained_segs = 1, max = 0, max_i = -1, max_off = -1, off = 0;
-						for (i = 0; i < n_regs0; ++i) { // find the best chain
-							if (max < (int)(u[i]>>32)) max = u[i]>>32, max_i = i, max_off = off;
-							off += (uint32_t)u[i];
-						}
-						for (i = 1; i < (int32_t)u[max_i]; ++i) // count the number of segments in the best chain
-							if ((a[max_off+i].y&MM_SEED_SEG_MASK) != (a[max_off+i-1].y&MM_SEED_SEG_MASK))
-								++n_chained_segs;
-						if (n_chained_segs < n_segs)
-							rechain = 1;
-					} else rechain = 1;
-					if (rechain) { // redo chaining with a higher max_occ threshold
-						kfree(b->km, a);
-						kfree(b->km, u);
-						kfree(b->km, mini_pos);
-						if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-						else a = collect_seed_hits(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
-					}
-				}
-				b->frag_gap = max_chain_gap_ref;
-				b->rep_len = rep_len;
-
-				regs0 = mm_gen_regs(b->km, hash, qlen_sum, n_regs0, u, a);
-
-				if (mm_dbg_flag & MM_DBG_PRINT_SEED)
-					for (j = 0; j < n_regs0; ++j)
-						for (i = regs0[j].as; i < regs0[j].as + regs0[j].cnt; ++i)
-							fprintf(stderr, "CN\t%d\t%s\t%d\t%c\t%d\t%d\t%d\n", j, mi->seq[a[i].x<<1>>33].name, (int32_t)a[i].x, "+-"[a[i].x>>63], (int32_t)a[i].y, (int32_t)(a[i].y>>32&0xff),
-									i == regs0[j].as? 0 : ((int32_t)a[i].y - (int32_t)a[i-1].y) - ((int32_t)a[i].x - (int32_t)a[i-1].x));
-
-				chain_post(opt_2, max_chain_gap_ref, mi, b->km, qlen_sum, n_segs, qlens, &n_regs0, regs0, a);
-				if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);
-
-				if (n_segs == 1) { // uni-segment
-					regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a);
-					mm_set_mapq(b->km, n_regs0, regs0, opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
-					n_regs[0] = n_regs0, regs[0] = regs0;
-				} else { // multi-segment
-					mm_seg_t *seg;
-					seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
-					free(regs0);
-					for (i = 0; i < n_segs; ++i) {
-						mm_set_parent(b->km, opt_2->mask_level, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
-						regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
-						mm_set_mapq(b->km, n_regs[i], regs[i], opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
-					}
-					mm_seg_free(b->km, n_segs, seg);
-					if (n_segs == 2 && opt_2->pe_ori >= 0 && (opt_2->flag&MM_F_CIGAR))
-						mm_pair(b->km, max_chain_gap_ref, opt_2->pe_bonus, opt_2->a * 2 + opt_2->b, opt_2->a, qlens, n_regs, regs); // pairing
-				}
-
-				int mostPromisingMapping = -1;
-				int max_mapq_fragment = 0;
-
-				//For valid mapping, save anchors 
-				for (j = 0; j < n_regs0; ++j)
-				{
-					max_mapq_fragment = std::max ((int32_t)regs0[j].mapq, max_mapq_fragment);
-					max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
-
-					//Check for high confidence (mapq), length
-					if (regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= opt->min_qcov * sub_len && regs0[j].cnt > 0)
-					{
-						mappingFound = true;
-						mostPromisingMapping = j;
-						collect_n_a[suffix_id] = regs0[j].cnt;
-
-						if (mm_dbg_flag & MM_DBG_POLISH)
-							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
-
-						break;	
-					}
-				}
-
-				if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
-					fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, -1 * sub_len, max_mapq_fragment, n_regs0);
-
-				if (mappingFound)
-				{
-					assert (collect_n_a[suffix_id] > 0);
-					assert (mostPromisingMapping >= 0);
-
-					collect_a[suffix_id] = (mm128_t*)kmalloc(b->km, collect_n_a[suffix_id] * sizeof(mm128_t));
-					j = mostPromisingMapping;
-
-					for (i = 0; i < regs0[j].cnt; ++i)
-					{
-						mm128_t _a_ = a[i + regs0[j].as];
-
-						//correct coordinates of each anchor while storing
-						if (_a_.x >> 63) //reverse strand 
-							_a_.y += (qlens[0]-1) - sub_begin;  
-						else
-							_a_.y += sub_begin - sub_len + 1;		//offset of first base of substring
-						collect_a[suffix_id][i] = _a_;					
-					}
-				}
-
-				for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
-				free (regs0);
-				kfree(b->km, mv.a);
-				kfree(b->km, a);
-				kfree(b->km, u);
-				kfree(b->km, mini_pos);
-
-				if (mappingFound || !n_regs0)
-					break;		// mappingFound-> found shortest prefix; !n_regs0-> no candidate
-			}
+			//free openmp thread specific memory
+			kfree(b->km, sub_qlens);
+			kfree(b->km, sub_seqs[0]);
+			kfree(b->km, sub_seqs);
+			mm_tbuf_destroy(b);
 		}
-
-		if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
-			fprintf(stderr, "PO\tqname:%s, begin:%d, max_mapq_currentPos:%d [NONE FOUND] \n", qname, sub_begin, max_mapq_currentPos);
-
-		max_mapq_read = std::max (max_mapq_currentPos, max_mapq_read);
 	}
-
-	if ((mm_dbg_flag & MM_DBG_POLISH) && opt->SVaware)
-		fprintf(stderr, "PO\tqname: %s, max_mapq_read:%d\n", qname, max_mapq_read);
 
 	//define new set of options for next stage
 	//make stage 2 as sensitive as possible
@@ -824,10 +851,6 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 		/*kfree(b->km, mini_pos);*/
 		/*kfree(b->km, mv.a);*/
 	}
-
-	kfree(b->km, sub_qlens);
-	kfree(b->km, sub_seqs[0]);
-	kfree(b->km, sub_seqs);
 
 	for (i = 0; i < countStartingPositions; i++)
 		if (collect_n_a[i] > 0)
