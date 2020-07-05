@@ -378,9 +378,9 @@ int main(int argc, char *argv[])
 		{
 			fprintf(stderr, "[M::%s::%.3f*%.2f] running winnowmap in SV-aware mode\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
-			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters min:%d, inc:%0.1f, max:%d, sample:%d, min-qcov:%0.1f, min-mapq:%d\n",
+			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters min:%d, inc:%0.1f, max:%d, sample:%d, min-qcov:%0.1f, min-mapq:%d, mid-occ:%d\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
-					opt.minPrefixLength, opt.prefixIncrementFactor, opt.maxPrefixLength, opt.suffixSampleOffset, opt.min_qcov, opt.min_mapq);
+					opt.minPrefixLength, opt.prefixIncrementFactor, opt.maxPrefixLength, opt.suffixSampleOffset, opt.min_qcov, opt.min_mapq, opt.mid_occ);
 			fprintf(stderr, "[M::%s::%.3f*%.2f] stage2-specific parameters s2_maxiter:%d, s2_bw:%d, s2_maxgap:%d, s2_zdropinv:%d\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
 					opt.stage2_max_chain_iter, opt.stage2_bw, opt.stage2_max_gap, opt.stage2_zdrop_inv);

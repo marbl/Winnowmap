@@ -110,6 +110,8 @@ void mm_idx_stat(const mm_idx_t *mi)
 	uint32_t i;
 	uint64_t sum = 0, len = 0;
 	fprintf(stderr, "[M::%s] kmer size: %d; skip: %d; is_hpc: %d; #seq: %d\n", __func__, mi->k, mi->w, mi->flag&MM_I_HPC, mi->n_seq);
+	if (mi->w < 50) //display a warning if user adjusted window size is below default
+		fprintf(stderr, "[M::%s] warning: setting a lower window size (-w) than default affects runtime and memory-usage\n", __func__);
 	for (i = 0; i < mi->n_seq; ++i)
 		len += mi->seq[i].len;
 	for (i = 0; i < 1U<<mi->b; ++i)
