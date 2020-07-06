@@ -5,7 +5,6 @@ void mm_idxopt_init(mm_idxopt_t *opt)
 {
 	memset(opt, 0, sizeof(mm_idxopt_t));
 	opt->k = 15, opt->w = 50, opt->flag = 0;
-	opt->flag |= MM_F_OUT_MD;  //enable --MD flag by default
 	opt->bucket_bits = 14;
 	opt->mini_batch_size = 50000000;
 	opt->batch_size = 4000000000ULL;
@@ -58,6 +57,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->min_mapq = 5;
 	opt->min_qcov = 0.5;
 	opt->SVaware = true;
+	opt->flag |= MM_F_OUT_MD;  //enable --MD flag by default
 
 	//these parameters override defaults & user settings if those are less sensitive
 	opt->stage2_max_chain_iter = 50000; //few anchors to process in stage 2
