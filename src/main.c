@@ -329,8 +329,8 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    --version    show version number\n");
 		fprintf(fp_help, "  Preset:\n");
 		fprintf(fp_help, "    -x STR       preset (always applied before other options) []\n");
-		fprintf(fp_help, "                 - map - PacBio/Nanopore vs reference mapping\n");
-		fprintf(fp_help, "                 - asm - asm-to-ref mapping\n");
+		fprintf(fp_help, "                 - map (PacBio/Nanopore vs reference mapping)\n");
+		fprintf(fp_help, "                 - asm (asm-to-ref mapping)\n");
 		return fp_help == stdout? 0 : 1;
 	}
 
