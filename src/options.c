@@ -5,6 +5,7 @@ void mm_idxopt_init(mm_idxopt_t *opt)
 {
 	memset(opt, 0, sizeof(mm_idxopt_t));
 	opt->k = 15, opt->w = 50, opt->flag = 0;
+	opt->flag |= MM_F_OUT_MD;  //enable --MD flag by default
 	opt->bucket_bits = 14;
 	opt->mini_batch_size = 50000000;
 	opt->batch_size = 4000000000ULL;
@@ -49,8 +50,8 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->pe_ori = 0; // FF
 	opt->pe_bonus = 33;
 
-	//prefix settings specific for ultra-long ONT / asm-to-asm modes
-	opt->maxPrefixLength = 16384;
+	//prefix settings specific for sv-aware method
+	opt->maxPrefixLength = 16384; //also sets minimum read length for using sv-aware method
 	opt->minPrefixLength = 1000;
 	opt->suffixSampleOffset = 1000; //reducing sampling offset increases sensitivity & runtime
 	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1)/ opt->minPrefixLength, 0.5);
@@ -99,25 +100,9 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		io->flag |= MM_I_HPC, io->k = 19;
 		mo->flag |= MM_F_ALL_CHAINS | MM_F_NO_DIAG | MM_F_NO_DUAL | MM_F_NO_LJOIN;
 		mo->min_chain_score = 100, mo->pri_ratio = 0.0f, mo->max_gap = 10000, mo->max_chain_skip = 25;
-	} else if (strcmp(preset, "map10k") == 0 || strcmp(preset, "map-pb") == 0) {
-		io->flag |= MM_I_HPC, io->k = 19;
-	} else if (strcmp(preset, "map-ont") == 0) {
+	} else if (strcmp(preset, "map10k") == 0 || strcmp(preset, "map") == 0) {
 		io->flag = 0, io->k = 15;
-	} else if (strcmp(preset, "asm5") == 0) {
-		/* io->w = 19;*/
-		io->flag = 0, io->k = 19;
-		mo->a = 1, mo->b = 19, mo->q = 39, mo->q2 = 81, mo->e = 3, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
-		mo->min_mid_occ = 100;
-		mo->min_dp_max = 200;
-		mo->best_n = 50;
-	} else if (strcmp(preset, "asm10") == 0) {
-		/* io->w = 19;*/
-		io->flag = 0, io->k = 19;
-		mo->a = 1, mo->b = 9, mo->q = 16, mo->q2 = 41, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
-		mo->min_mid_occ = 100;
-		mo->min_dp_max = 200;
-		mo->best_n = 50;
-	} else if (strcmp(preset, "asm20") == 0) {
+	} else if (strcmp(preset, "asm") == 0) {
 		/* io->w = 10;*/
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 4, mo->q = 6, mo->q2 = 26, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;

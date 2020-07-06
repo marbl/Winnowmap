@@ -306,7 +306,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	mm_mapopt_t opt2 = *opt;
 	mm_mapopt_t *opt_2 = &opt2;
 
-	if (opt->SVaware)
+	//check if SVaware mode enabled and query length is sufficient
+	if (opt->SVaware && qlens[0] >= opt->maxPrefixLength)
 	{
 		//parallelize single read alignment further for better load balance
 #pragma omp parallel num_threads(3)
