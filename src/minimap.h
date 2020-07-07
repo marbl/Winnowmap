@@ -128,6 +128,7 @@ typedef struct {
 	int min_mapq;
 	float min_qcov;
 	bool SVaware;
+	int SVawareMinReadLength;
 	int stage2_max_chain_iter, stage2_bw, stage2_max_gap, stage2_zdrop_inv;
 
 

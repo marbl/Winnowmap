@@ -50,13 +50,14 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->pe_bonus = 33;
 
 	//prefix settings specific for sv-aware method
-	opt->maxPrefixLength = 16384; //also sets minimum read length for using sv-aware method
+	opt->maxPrefixLength = 16384;
 	opt->minPrefixLength = 1000;
 	opt->suffixSampleOffset = 1000; //reducing sampling offset increases sensitivity & runtime
 	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1)/ opt->minPrefixLength, 0.5);
 	opt->min_mapq = 5;
 	opt->min_qcov = 0.5;
 	opt->SVaware = true;
+	opt->SVawareMinReadLength = 10000; //for both ONT and PB
 	opt->flag |= MM_F_OUT_MD;  //enable --MD flag by default
 
 	//these parameters override defaults & user settings if those are less sensitive
