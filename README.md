@@ -35,7 +35,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 
 	winnowmap -W repetitiveK19.txt -t 36 -ax asm asm1.fa asm2.fa > output.sam
   ```
-  Adjust the thread count `-t` based on your CPU. In the `asm` case, it may be useful to visualize the genome-to-genome dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts) can be used to generate a dot plot from [paf](https://github.com/lh3/miniasm/blob/master/PAF.md)-formatted output. In both of the above use-cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, it typically takes 2-3 minutes for the human genome reference.
+  Adjust the thread count `-t` based on your CPU. For the genome-to-genome use case, it may be useful to visualize the dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts) can be used to generate a dot plot from [paf](https://github.com/lh3/miniasm/blob/master/PAF.md)-formatted output. In both usage cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, e.g., it typically takes 2-3 minutes for the human genome reference.
 
 ## Benchmarking
 

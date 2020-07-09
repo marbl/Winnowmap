@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "Usage: winnowmap [options] <target.fa>|<target.idx> [query.fa] [...]\n");
 		fprintf(fp_help, "Options:\n");
 		fprintf(fp_help, "  Indexing:\n");
-		fprintf(fp_help, "    -H           use homopolymer-compressed k-mer (preferrable for PacBio)\n");
+		fprintf(fp_help, "    -H           use homopolymer-compressed k-mer\n");
 		fprintf(fp_help, "    -k INT       k-mer size (no larger than 28) [%d]\n", ipt.k);
 		fprintf(fp_help, "    -w INT       minimizer window size [%d]\n", ipt.w);
 		fprintf(fp_help, "    -W FILE      input file containing list of high freq. k-mers []\n");

@@ -305,6 +305,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	//generate many candidate alignments to improve mapq estimation
 	mm_mapopt_t opt2 = *opt;
 	mm_mapopt_t *opt_2 = &opt2;
+	opt_2->flag |= MM_F_CIGAR; //avoid overriding from user param
+	if (opt_2->best_n < 5) opt_2->best_n = 5; //avoid overriding best_n from user param
 
 	//check if SVaware mode enabled and query length is sufficient
 	if (opt->SVaware && qlens[0] >= opt->SVawareMinReadLength)
