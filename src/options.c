@@ -29,7 +29,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 
 	opt->mask_level = 0.5f;
 	opt->pri_ratio = 0.8f;
-	opt->best_n = 5;
+	opt->best_n = 5; //this may only be useful for stage 1 mapq predictions
 
 	opt->max_join_long = 20000;
 	opt->max_join_short = 2000;
@@ -109,7 +109,7 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		mo->a = 1, mo->b = 4, mo->q = 6, mo->q2 = 26, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
 		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
-		mo->best_n = 50;
+		/*mo->best_n = 50;*/
 	} else if (strcmp(preset, "short") == 0 || strcmp(preset, "sr") == 0) {
 		/* io->w = 11;*/
 		io->flag = 0, io->k = 21;

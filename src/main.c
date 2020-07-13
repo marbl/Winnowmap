@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 //		fprintf(fp_help, "    -T INT       SDUST threshold; 0 to disable SDUST [%d]\n", opt.sdust_thres); // TODO: this option is never used; might be buggy
 		fprintf(fp_help, "    -X           skip self and dual mappings (for the all-vs-all mode)\n");
 		fprintf(fp_help, "    -p FLOAT     min secondary-to-primary score ratio [%g]\n", opt.pri_ratio);
-		fprintf(fp_help, "    -N INT       retain at most INT secondary alignments [%d]\n", opt.best_n);
+		/*fprintf(fp_help, "    -N INT       retain at most INT secondary alignments [%d]\n", opt.best_n);*/
 		fprintf(fp_help, "  Alignment:\n");
 		fprintf(fp_help, "    -A INT       matching score [%d]\n", opt.a);
 		fprintf(fp_help, "    -B INT       mismatch penalty [%d]\n", opt.b);
@@ -329,8 +329,8 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    --version    show version number\n");
 		fprintf(fp_help, "  Preset:\n");
 		fprintf(fp_help, "    -x STR       preset (always applied before other options) []\n");
-		fprintf(fp_help, "                 - map (PacBio/Nanopore vs reference mapping)\n");
-		fprintf(fp_help, "                 - asm (asm-to-ref mapping)\n");
+		fprintf(fp_help, "                 - map (PacBio/Nanopore vs reference mapping, uses default param)\n");
+		fprintf(fp_help, "                 - asm (assembly vs reference mapping, uses -k19 -A1 -B4 -O6,26 -E2,1 -s200 -z200)\n");
 		return fp_help == stdout? 0 : 1;
 	}
 
