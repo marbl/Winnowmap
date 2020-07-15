@@ -24,7 +24,8 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 	meryl count k=15 output merylK15 ref.fa
 	meryl print greater-than distinct=0.9998 merylK15 > repetitiveK15.txt
 
-	winnowmap -W repetitiveK15.txt -t 36 -ax map ref.fa ont.fq.gz > output.sam
+	winnowmap -W repetitiveK15.txt -t 36 -ax map-ont ref.fa ont.fq.gz > output.sam  [OR]
+	winnowmap -W repetitiveK15.txt -t 36 -ax map-pb ref.fa hifi.fq.gz > output.sam
   ```
 
 *  Mapping genome assemblies
@@ -33,7 +34,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 	meryl count k=19 output merylK19 asm1.fa
 	meryl print greater-than distinct=0.9998 merylK19 > repetitiveK19.txt
 
-	winnowmap -W repetitiveK19.txt -t 36 -ax asm asm1.fa asm2.fa > output.sam
+	winnowmap -W repetitiveK19.txt -t 36 -ax asm20 asm1.fa asm2.fa > output.sam
   ```
   Adjust the thread count `-t` based on your CPU. For the genome-to-genome use case, it may be useful to visualize the dot plot. This [perl script](https://github.com/marbl/MashMap/blob/master/scripts) can be used to generate a dot plot from [paf](https://github.com/lh3/miniasm/blob/master/PAF.md)-formatted output. In both usage cases, pre-computing repetitive k-mers using [meryl](https://github.com/marbl/meryl) is quite fast, e.g., it typically takes 2-3 minutes for the human genome reference.
 

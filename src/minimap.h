@@ -121,14 +121,16 @@ typedef struct {
 	int min_cnt;         // min number of minimizers on each chain
 	int min_chain_score; // min chaining score
 
-	int maxPrefixLength;
-	int minPrefixLength;
-	float prefixIncrementFactor;
+	//stage 1 parameters
+	bool SVaware;
+	int SVawareMinReadLength;
 	int suffixSampleOffset;
 	int min_mapq;
 	float min_qcov;
-	bool SVaware;
-	int SVawareMinReadLength;
+	int minPrefixLength;
+	int maxPrefixLength;
+	float prefixIncrementFactor;
+	//stage 2 parameters
 	int stage2_max_chain_iter, stage2_bw, stage2_max_gap, stage2_zdrop_inv;
 
 

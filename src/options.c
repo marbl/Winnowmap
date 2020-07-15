@@ -51,8 +51,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 
 	//prefix settings specific for sv-aware method
 	opt->maxPrefixLength = 16384;
-	opt->minPrefixLength = 1000;
-	opt->suffixSampleOffset = 1000; //reducing sampling offset increases sensitivity & runtime
+	opt->minPrefixLength = opt->suffixSampleOffset = 1000; //reducing these may increase sensitivity & runtime
 	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1)/ opt->minPrefixLength, 0.5);
 	opt->min_mapq = 5;
 	opt->min_qcov = 0.5;
@@ -90,56 +89,24 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 	if (preset == 0) {
 		mm_idxopt_init(io);
 		mm_mapopt_init(mo);
-	} else if (strcmp(preset, "ava-ont") == 0) {
-		/* io->w = 5;*/
+	} else if (strcmp(preset, "map-ont") == 0) { //ONT
 		io->flag = 0, io->k = 15;
-		mo->flag |= MM_F_ALL_CHAINS | MM_F_NO_DIAG | MM_F_NO_DUAL | MM_F_NO_LJOIN;
-		mo->min_chain_score = 100, mo->pri_ratio = 0.0f, mo->max_gap = 10000, mo->max_chain_skip = 25;
-		mo->bw = 2000;
-	} else if (strcmp(preset, "ava-pb") == 0) {
-		/* io->w = 5;*/
-		io->flag |= MM_I_HPC, io->k = 19;
-		mo->flag |= MM_F_ALL_CHAINS | MM_F_NO_DIAG | MM_F_NO_DUAL | MM_F_NO_LJOIN;
-		mo->min_chain_score = 100, mo->pri_ratio = 0.0f, mo->max_gap = 10000, mo->max_chain_skip = 25;
-	} else if (strcmp(preset, "map10k") == 0 || strcmp(preset, "map") == 0) {
+	} else if (strcmp(preset, "map-pb") == 0) { //hifi
 		io->flag = 0, io->k = 15;
-	} else if (strcmp(preset, "asm") == 0) {
-		/* io->w = 10;*/
+		mo->maxPrefixLength = 8192; //half of the default
+		mo->suffixSampleOffset = mo->minPrefixLength = 500; //half
+	} else if (strcmp(preset, "asm5") == 0) {
+		io->flag = 0, io->k = 19;
+		mo->a = 1, mo->b = 19, mo->q = 39, mo->q2 = 81, mo->e = 3, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
+		mo->min_dp_max = 200;
+	} else if (strcmp(preset, "asm10") == 0) {
+		io->flag = 0, io->k = 19;
+		mo->a = 1, mo->b = 9, mo->q = 16, mo->q2 = 41, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
+		mo->min_dp_max = 200;
+	} else if (strcmp(preset, "asm20") == 0) {
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 4, mo->q = 6, mo->q2 = 26, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
-		mo->min_mid_occ = 100;
 		mo->min_dp_max = 200;
-		/*mo->best_n = 50;*/
-	} else if (strcmp(preset, "short") == 0 || strcmp(preset, "sr") == 0) {
-		/* io->w = 11;*/
-		io->flag = 0, io->k = 21;
-		mo->flag |= MM_F_SR | MM_F_FRAG_MODE | MM_F_NO_PRINT_2ND | MM_F_2_IO_THREADS | MM_F_HEAP_SORT;
-		mo->pe_ori = 0<<1|1; // FR
-		mo->a = 2, mo->b = 8, mo->q = 12, mo->e = 2, mo->q2 = 24, mo->e2 = 1;
-		mo->zdrop = mo->zdrop_inv = 100;
-		mo->end_bonus = 10;
-		mo->max_frag_len = 800;
-		mo->max_gap = 100;
-		mo->bw = 100;
-		mo->pri_ratio = 0.5f;
-		mo->min_cnt = 2;
-		mo->min_chain_score = 25;
-		mo->min_dp_max = 40;
-		mo->best_n = 20;
-		mo->mid_occ = 1000;
-		mo->max_occ = 5000;
-		mo->mini_batch_size = 50000000;
-	} else if (strncmp(preset, "splice", 6) == 0 || strcmp(preset, "cdna") == 0) {
-		/* io->w = 5;*/
-		io->flag = 0, io->k = 15;
-		mo->flag |= MM_F_SPLICE | MM_F_SPLICE_FOR | MM_F_SPLICE_REV | MM_F_SPLICE_FLANK;
-		mo->max_gap = 2000, mo->max_gap_ref = mo->bw = 200000;
-		mo->a = 1, mo->b = 2, mo->q = 2, mo->e = 1, mo->q2 = 32, mo->e2 = 0;
-		mo->noncan = 9;
-		mo->junc_bonus = 9;
-		mo->zdrop = 200, mo->zdrop_inv = 100; // because mo->a is halved
-		if (strcmp(preset, "splice:hq") == 0)
-			mo->junc_bonus = 5, mo->b = 4, mo->q = 6, mo->q2 = 24;
 	} else return -1;
 	return 0;
 }

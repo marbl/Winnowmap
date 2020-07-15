@@ -295,21 +295,21 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	mm_tbuf_t *b_master = b; //buffer for main thread entering this function
 
 	//stage1: Pre-compute confident read alignments of substrings of input read
-
-	int countStartingPositions = std::ceil(qlens[0] * 1.0 / opt->suffixSampleOffset);
-	collect_a = (mm128_t**)kmalloc(b->km, countStartingPositions * sizeof(mm128_t*)); 
-	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
-	memset(collect_n_a, 0, countStartingPositions * sizeof(int64_t));
-
 	//define new set of options for first stage
 	//generate many candidate alignments to improve mapq estimation
 	mm_mapopt_t opt2 = *opt;
 	mm_mapopt_t *opt_2 = &opt2;
 	opt_2->flag |= MM_F_CIGAR; //avoid overriding from user param
-	if (opt_2->best_n < 5) opt_2->best_n = 5; //avoid overriding best_n from user param
+	opt_2->best_n = std::max(5, opt_2->best_n); //set minimum
+
+	int countStartingPositions = std::ceil(qlens[0] * 1.0 / opt_2->suffixSampleOffset);
+	collect_a = (mm128_t**)kmalloc(b->km, countStartingPositions * sizeof(mm128_t*)); 
+	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
+	memset(collect_n_a, 0, countStartingPositions * sizeof(int64_t));
+
 
 	//check if SVaware mode enabled and query length is sufficient
-	if (opt->SVaware && qlens[0] >= opt->SVawareMinReadLength)
+	if (opt_2->SVaware && qlens[0] >= opt_2->SVawareMinReadLength)
 	{
 		//parallelize single read alignment further for better load balance
 #pragma omp parallel num_threads(3)
@@ -329,14 +329,14 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			sub_seqs[0] = (char *)kmalloc(b->km, qlens[0] * sizeof(char));
 
 #pragma omp for schedule(dynamic)
-			for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += opt->suffixSampleOffset)
+			for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += opt_2->suffixSampleOffset)
 			{
-				int suffix_id = std::ceil(sub_begin * 1.0 / opt->suffixSampleOffset);	//id of this suffix
+				int suffix_id = std::ceil(sub_begin * 1.0 / opt_2->suffixSampleOffset);	//id of this suffix
 
 				bool mappingFound = false;
 				int max_mapq_currentPos = 0;
 
-				for (int sub_len = opt->minPrefixLength; sub_len <= opt->maxPrefixLength; sub_len *= opt->prefixIncrementFactor)
+				for (int sub_len = opt_2->minPrefixLength; sub_len <= opt_2->maxPrefixLength; sub_len *= opt_2->prefixIncrementFactor)
 				{
 					//consider 'sub_len' bases to the right
 					if (sub_begin + sub_len <= qlens[0])	//check substring end boundary limit
@@ -449,7 +449,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 							max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
 
 							//Check for high confidence (mapq), length
-							if (regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= opt->min_qcov * sub_len && regs0[j].cnt > 0)
+							if (regs0[j].mapq >= opt_2->min_mapq && regs0[j].blen >= opt_2->min_qcov * sub_len && regs0[j].cnt > 0)
 							{
 								mappingFound = true;
 								mostPromisingMapping = j;
@@ -611,7 +611,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 							max_mapq_currentPos = std::max (max_mapq_fragment, max_mapq_currentPos);
 
 							//Check for high confidence (mapq), length
-							if (regs0[j].mapq >= opt->min_mapq && regs0[j].blen >= opt->min_qcov * sub_len && regs0[j].cnt > 0)
+							if (regs0[j].mapq >= opt_2->min_mapq && regs0[j].blen >= opt_2->min_qcov * sub_len && regs0[j].cnt > 0)
 							{
 								mappingFound = true;
 								mostPromisingMapping = j;
