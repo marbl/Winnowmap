@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
 		else if (c == 302) opt.seed = atoi(o.arg); // --seed
 		else if (c == 303) mm_dbg_flag |= MM_DBG_NO_KALLOC; // --no-kalloc
 		else if (c == 304) mm_dbg_flag |= MM_DBG_PRINT_QNAME; // --print-qname
-		else if (c == 305) mm_dbg_flag |= MM_DBG_PRINT_QNAME | MM_DBG_POLISH; // -- dbg-polish
+		else if (c == 305) mm_dbg_flag |= MM_DBG_PRINT_QNAME | MM_DBG_POLISH; // --dbg-polish
 		else if (c == 306) mm_dbg_flag |= MM_DBG_PRINT_QNAME | MM_DBG_PRINT_SEED, n_threads = 1; // --print-seed
 		else if (c == 307) opt.max_chain_skip = atoi(o.arg); // --max-chain-skip
 		else if (c == 339) opt.max_chain_iter = atoi(o.arg); // --max-chain-iter
@@ -375,12 +375,12 @@ int main(int argc, char *argv[])
 		{
 			fprintf(stderr, "[M::%s::%.3f*%.2f] running winnowmap in SV-aware mode\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
-			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters minP:%d, incP:%0.1f, maxP:%d, sample:%d, min-qlen:%d, min-qcov:%0.1f, min-mapq:%d, mid-occ:%d\n",
+			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters minP:%d, incP:%0.3f, maxP:%d, sample:%d, min-qlen:%d, min-qcov:%0.1f, min-mapq:%d, mid-occ:%d\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
 					opt.minPrefixLength, opt.prefixIncrementFactor, opt.maxPrefixLength, opt.suffixSampleOffset, opt.SVawareMinReadLength, opt.min_qcov, opt.min_mapq, opt.mid_occ);
-			fprintf(stderr, "[M::%s::%.3f*%.2f] stage2-specific parameters s2_maxiter:%d, s2_bw:%d, s2_maxgap:%d, s2_zdropinv:%d\n",
+			fprintf(stderr, "[M::%s::%.3f*%.2f] stage2-specific parameters s2_bw:%d, s2_zdropinv:%d\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
-					opt.stage2_max_chain_iter, opt.stage2_bw, opt.stage2_max_gap, opt.stage2_zdrop_inv);
+					opt.stage2_bw, opt.stage2_zdrop_inv);
 		}
 		if (mm_verbose >= 3) mm_idx_stat(mi);
 		if (junc_bed) mm_idx_bed_read(mi, junc_bed, 1);

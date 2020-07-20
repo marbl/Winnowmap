@@ -299,10 +299,10 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	//generate many candidate alignments to improve mapq estimation
 	mm_mapopt_t opt2 = *opt;
 	mm_mapopt_t *opt_2 = &opt2;
-	opt_2->flag |= MM_F_CIGAR; //avoid overriding from user param
 	opt_2->best_n = std::max(5, opt_2->best_n); //set minimum
 
-	int countStartingPositions = std::ceil(qlens[0] * 1.0 / opt_2->suffixSampleOffset);
+
+	int countStartingPositions = 1 + std::ceil(qlens[0] * 1.0 / opt_2->suffixSampleOffset);
 	collect_a = (mm128_t**)kmalloc(b->km, countStartingPositions * sizeof(mm128_t*)); 
 	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
 	memset(collect_n_a, 0, countStartingPositions * sizeof(int64_t));
@@ -329,12 +329,14 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			sub_seqs[0] = (char *)kmalloc(b->km, qlens[0] * sizeof(char));
 
 #pragma omp for schedule(dynamic)
-			for (int sub_begin = 0; sub_begin < qlens[0]; sub_begin += opt_2->suffixSampleOffset)
+			for (int sub_begin = 0; sub_begin < qlens[0] + opt_2->suffixSampleOffset - 1; sub_begin += opt_2->suffixSampleOffset)
 			{
-				int suffix_id = std::ceil(sub_begin * 1.0 / opt_2->suffixSampleOffset);	//id of this suffix
+				int suffix_id = sub_begin / opt_2->suffixSampleOffset;	//id for this string end-point
 
 				bool mappingFound = false;
 				int max_mapq_currentPos = 0;
+				if (sub_begin >= qlens[0]) sub_begin = qlens[0]-1; //for last iter
+				assert (sub_begin >= 0 && sub_begin < qlens[0]);
 
 				for (int sub_len = opt_2->minPrefixLength; sub_len <= opt_2->maxPrefixLength; sub_len *= opt_2->prefixIncrementFactor)
 				{
@@ -456,14 +458,14 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 								collect_n_a[suffix_id] = regs0[j].cnt;
 
 								if (mm_dbg_flag & MM_DBG_POLISH)
-									fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+									fprintf(stderr, "PO\tqname:%s, suffid:%d, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, suffix_id, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
 
 								break;		
 							}
 						}
 
 						if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
-							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, sub_len, max_mapq_fragment, n_regs0);
+							fprintf(stderr, "PO\tqname:%s, suffid:%d, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, suffix_id, sub_begin, sub_len, max_mapq_fragment, n_regs0);
 
 						if (mappingFound)
 						{
@@ -618,14 +620,14 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 								collect_n_a[suffix_id] = regs0[j].cnt;
 
 								if (mm_dbg_flag & MM_DBG_POLISH)
-									fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+									fprintf(stderr, "PO\tqname:%s, suffid:%d, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, suffix_id, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
 
 								break;	
 							}
 						}
 
 						if ((mm_dbg_flag & MM_DBG_POLISH) && !mappingFound)
-							fprintf(stderr, "PO\tqname:%s, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, sub_begin, -1 * sub_len, max_mapq_fragment, n_regs0);
+							fprintf(stderr, "PO\tqname:%s, suffid:%d, begin:%d, len:%d, max_mapq:%d, n_regs0:%d [NONE FOUND] \n", qname, suffix_id, sub_begin, -1 * sub_len, max_mapq_fragment, n_regs0);
 
 						if (mappingFound)
 						{
@@ -676,14 +678,11 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	}
 
 	//define new set of options for next stage
-	//make stage 2 as sensitive as possible
+	//we can make stage 2 as sensitive as possible with very few seeds remaining
 	mm_mapopt_t opt3 = *opt;
 	mm_mapopt_t *opt_3 = &opt3;
-
-	opt_3->max_chain_iter = std::max (opt->max_chain_iter, opt->stage2_max_chain_iter);
-	opt_3->bw = std::max (opt->bw, opt->stage2_bw);
 	opt_3->zdrop_inv = std::min (opt->zdrop_inv, opt->stage2_zdrop_inv);
-	opt_3->max_gap = std::max (opt->max_gap, opt->stage2_max_gap);
+	opt_3->bw= std::max(opt->bw, opt->stage2_bw);
 
 	//Re-run mapping with the above selected anchors
 	{
@@ -777,7 +776,6 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			max_chain_gap_qry = qlen_sum > opt_3->max_gap? qlen_sum : opt_3->max_gap;
 		else max_chain_gap_qry = opt_3->max_gap;
 
-		//switch to opt_3 parameters for chaining and alignment
 		if (opt_3->max_gap_ref > 0) {
 			max_chain_gap_ref = opt_3->max_gap_ref; // always honor mm_mapopt_3_t::max_gap_ref if set
 		} else if (opt_3->max_frag_len > 0) {

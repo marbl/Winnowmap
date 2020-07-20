@@ -50,9 +50,9 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->pe_bonus = 33;
 
 	//prefix settings specific for sv-aware method
-	opt->maxPrefixLength = 16384;
+	opt->maxPrefixLength = 16000;
 	opt->minPrefixLength = opt->suffixSampleOffset = 1000; //reducing these may increase sensitivity & runtime
-	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1)/ opt->minPrefixLength, 0.5);
+	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1) * 1.0/ opt->minPrefixLength, 0.5);
 	opt->min_mapq = 5;
 	opt->min_qcov = 0.5;
 	opt->SVaware = true;
@@ -60,10 +60,8 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->flag |= MM_F_OUT_MD;  //enable --MD flag by default
 
 	//these parameters override defaults & user settings if those are less sensitive
-	opt->stage2_max_chain_iter = 50000; //few anchors to process in stage 2
-	opt->stage2_bw = 10000;
 	opt->stage2_zdrop_inv = 25;
-	opt->stage2_max_gap = 10000;
+	opt->stage2_bw = 2000;
 }
 
 void mm_mapopt_update(mm_mapopt_t *opt, const mm_idx_t *mi)
@@ -93,8 +91,10 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		io->flag = 0, io->k = 15;
 	} else if (strcmp(preset, "map-pb") == 0) { //hifi
 		io->flag = 0, io->k = 15;
-		mo->maxPrefixLength = 8192; //half of the default
+		mo->maxPrefixLength = 8000; //half of the default
 		mo->suffixSampleOffset = mo->minPrefixLength = 500; //half
+		mo->stage2_bw = 1000; //half (making it longer could risk missing long SVs)
+		mo->prefixIncrementFactor = std::pow((mo->maxPrefixLength - 1) * 1.0/ mo->minPrefixLength, 0.33); //inc. levels
 	} else if (strcmp(preset, "asm5") == 0) {
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 19, mo->q = 39, mo->q2 = 81, mo->e = 3, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;

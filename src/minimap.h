@@ -123,7 +123,7 @@ typedef struct {
 
 	//stage 1 parameters
 	bool SVaware;
-	int SVawareMinReadLength;
+	int SVawareMinReadLength; //min read len for SV-aware mode
 	int suffixSampleOffset;
 	int min_mapq;
 	float min_qcov;
@@ -131,7 +131,7 @@ typedef struct {
 	int maxPrefixLength;
 	float prefixIncrementFactor;
 	//stage 2 parameters
-	int stage2_max_chain_iter, stage2_bw, stage2_max_gap, stage2_zdrop_inv;
+	int stage2_bw, stage2_zdrop_inv;
 
 
 	float mask_level;
