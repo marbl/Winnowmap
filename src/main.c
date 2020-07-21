@@ -68,6 +68,7 @@ static ko_longopt_t long_options[] = {
 	{ "junc-bed",       ko_required_argument, 340 },
 	{ "junc-bonus",     ko_required_argument, 341 },
 	{ "sam-hit-only",   ko_no_argument,       342 },
+	{ "sv-off",         ko_no_argument,       343 },
 	{ "help",           ko_no_argument,       'h' },
 	{ "max-intron-len", ko_required_argument, 'G' },
 	{ "version",        ko_no_argument,       'V' },
@@ -214,6 +215,7 @@ int main(int argc, char *argv[])
 		else if (c == 338) opt.max_qlen = mm_parse_num(o.arg); // --max-qlen
 		else if (c == 340) junc_bed = o.arg; // --junc-bed
 		else if (c == 342) opt.flag |= MM_F_SAM_HIT_ONLY; // --sam-hit-only
+		else if (c == 343) opt.SVaware = false; // --sv-off (defaults back to ISMB'20 version)
 		else if (c == 314) { // --frag
 			yes_or_no(&opt, MM_F_FRAG_MODE, o.longidx, o.arg, 1);
 		} else if (c == 315) { // --secondary
@@ -246,9 +248,9 @@ int main(int argc, char *argv[])
 			double x;
 			char *p;
 			x = strtod(o.arg, &p);
-			if (x < 1.0) opt.mid_occ_frac = x, opt.mid_occ = 0;
-			else opt.mid_occ = (int)(x + .499);
-			if (*p == ',') opt.max_occ = (int)(strtod(p+1, &p) + .499);
+			if (x >= 0.0 && x < 1.0) opt.mid_occ_frac = x;
+			/*else opt.mid_occ = (int)(x + .499);*/  //only let user set the frac
+			/*if (*p == ',') opt.max_occ = (int)(strtod(p+1, &p) + .499);*/
 		} else if (c == 'u') {
 			if (*o.arg == 'b') opt.flag |= MM_F_SPLICE_FOR|MM_F_SPLICE_REV; // both strands
 			else if (*o.arg == 'f') opt.flag |= MM_F_SPLICE_FOR, opt.flag &= ~MM_F_SPLICE_REV; // match GT-AG
@@ -294,7 +296,7 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    -I NUM       split index for every ~NUM input bases [4G]\n");
 		fprintf(fp_help, "    -d FILE      dump index to FILE []\n");
 		fprintf(fp_help, "  Mapping:\n");
-		fprintf(fp_help, "    -f FLOAT     filter out top FLOAT fraction of repetitive minimizers [%g]\n", opt.mid_occ_frac);
+		fprintf(fp_help, "    -f FLOAT     filter out top FLOAT (<1) fraction of repetitive minimizers [0.0]\n");
 		fprintf(fp_help, "    -g NUM       stop chain enlongation if there are no minimizers in INT-bp [%d]\n", opt.max_gap);
 		fprintf(fp_help, "    -G NUM       max intron length (effective with -xsplice; changing -r) [200k]\n");
 		fprintf(fp_help, "    -F NUM       max fragment length (effective with -xsr or in the fragment mode) [800]\n");
@@ -304,6 +306,7 @@ int main(int argc, char *argv[])
 //		fprintf(fp_help, "    -T INT       SDUST threshold; 0 to disable SDUST [%d]\n", opt.sdust_thres); // TODO: this option is never used; might be buggy
 		fprintf(fp_help, "    -X           skip self and dual mappings (for the all-vs-all mode)\n");
 		fprintf(fp_help, "    -p FLOAT     min secondary-to-primary score ratio [%g]\n", opt.pri_ratio);
+		fprintf(fp_help, "    --sv-off     turn off SV-aware mode\n");
 		/*fprintf(fp_help, "    -N INT       retain at most INT secondary alignments [%d]\n", opt.best_n);*/
 		fprintf(fp_help, "  Alignment:\n");
 		fprintf(fp_help, "    -A INT       matching score [%d]\n", opt.a);

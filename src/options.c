@@ -14,8 +14,8 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 {
 	memset(opt, 0, sizeof(mm_mapopt_t));
 	opt->seed = 11;
-	opt->mid_occ_frac = 0;
-	opt->max_mid_occ = 5000; //max cut-off
+	opt->mid_occ_frac = -1.0; //unset
+	opt->mid_occ = 5000; //default freq. cutoff
 	opt->sdust_thres = 0; // no SDUST masking
 
 	opt->min_cnt = 3;
@@ -68,12 +68,12 @@ void mm_mapopt_update(mm_mapopt_t *opt, const mm_idx_t *mi)
 {
 	if ((opt->flag & MM_F_SPLICE_FOR) || (opt->flag & MM_F_SPLICE_REV))
 		opt->flag |= MM_F_SPLICE;
-	if (opt->mid_occ <= 0)
+	if (opt->mid_occ_frac >= 0 && opt->mid_occ_frac < 1)  //user-specified
 		opt->mid_occ = mm_idx_cal_max_occ(mi, opt->mid_occ_frac);
 	if (opt->mid_occ < opt->min_mid_occ)
 		opt->mid_occ = opt->min_mid_occ;
-	if (opt->mid_occ > opt->max_mid_occ)
-		opt->mid_occ = opt->max_mid_occ;
+	if (!opt->SVaware)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] SV-aware mode = OFF, mid_occ = %d\n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), opt->mid_occ);
 }
 
 void mm_mapopt_max_intron_len(mm_mapopt_t *opt, int max_intron_len)
@@ -91,10 +91,12 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		io->flag = 0, io->k = 15;
 	} else if (strcmp(preset, "map-pb") == 0) { //hifi
 		io->flag = 0, io->k = 15;
-		mo->maxPrefixLength = 8000; //half of the default
-		mo->suffixSampleOffset = mo->minPrefixLength = 500; //half
-		mo->stage2_bw = 1000; //half (making it longer could risk missing long SVs)
+		mo->maxPrefixLength = 8000; //reduced
+		mo->suffixSampleOffset = mo->minPrefixLength = 500; //reduced
+		mo->stage2_bw = 1000; //reduced (making it longer could break alignments near long SVs)
 		mo->prefixIncrementFactor = std::pow((mo->maxPrefixLength - 1) * 1.0/ mo->minPrefixLength, 0.33); //inc. levels
+	} else if (strcmp(preset, "map-pb-clr") == 0) {
+		mo->SVaware = false; //turn off SV-aware mode for (relatively) short & noisy reads
 	} else if (strcmp(preset, "asm5") == 0) {
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 19, mo->q = 39, mo->q2 = 81, mo->e = 3, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
