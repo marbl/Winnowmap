@@ -1,6 +1,1 @@
-[submodule "src/bloom"]
-	path = src/bloom
-	url = https://github.com/ArashPartow/bloom.git
-[submodule "src/meryl"]
-	path = src/meryl
-	url = https://github.com/marbl/meryl.git
+
