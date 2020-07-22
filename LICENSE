@@ -1,0 +1,63 @@
+This software constitutes a joint work and the contributions of individual
+authors are subject to different licenses.  Contributions and licenses are
+listed in the applicable source files, with specific details on each
+individual contribution captured in the revision control system.
+
+--
+For all code, except as indicated otherwise:
+
+PUBLIC DOMAIN NOTICE
+
+This software is freely available to the public for use
+without a copyright notice. Restrictions cannot be placed on its present or
+future use.
+
+Although all reasonable efforts have been taken to ensure the accuracy and
+reliability of the software and associated data, the National Human Genome
+Research Institute (NHGRI), National Institutes of Health (NIH) and the
+U.S. Government do not and cannot warrant the performance or results that
+may be obtained by using this software or data. NHGRI, NIH and the
+U.S. Government disclaim all warranties as to performance, merchantability
+or fitness for any particular purpose.
+
+Please cite the authors in any work or product based on this material.
+
+--
+For minimap2:
+
+URL: https://lh3.github.io/minimap2
+
+The MIT License
+
+Copyright (c) 2018-     Dana-Farber Cancer Institute
+              2017-2018 Broad Institute, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--
+For bloom: 
+
+URL: http://www.partow.net/programming/bloomfilter/index.html
+
+Copyright notice:
+Free use of the Open Bloom Filter Library is permitted under the
+guidelines and in accordance with the MIT License.  
+http://www.opensource.org/licenses/MIT
