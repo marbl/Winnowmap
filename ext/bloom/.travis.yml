@@ -1,0 +1,11 @@
+language: cpp
+
+sudo: required
+
+dist: xenial
+
+compiler:
+  - gcc
+
+script:
+  - make clean all

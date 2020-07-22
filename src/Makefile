@@ -40,9 +40,9 @@ endif
 
 all:$(PROG)
 
-winnowmap:main.o libminimap2.a
+winnowmap:main.o libwinnowmap.a
 
-libminimap2.a:$(OBJS)
+libwinnowmap.a:$(OBJS)
 		$(AR) -csru $@ $(OBJS)
 
 sdust:sdust.c kalloc.o kalloc.h kdq.h kvec.h kseq.h ketopt.h sdust.h
