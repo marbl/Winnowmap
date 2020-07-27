@@ -57,7 +57,6 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->min_qcov = 0.5;
 	opt->SVaware = true;
 	opt->SVawareMinReadLength = 10000; //for both ONT and PB
-	opt->flag |= MM_F_OUT_MD;  //enable --MD flag by default
 
 	//these parameters override defaults & user settings if those are less sensitive
 	opt->stage2_zdrop_inv = 25;
