@@ -49,4 +49,4 @@ Minimizer sampling density using a human X chromosome as the reference, with the
 
 ## Publication
 
-- **Chirag Jain, Arang Rhie, Haowen Zhang, Chaudia Chu, Brian Walenz, Sergey Koren and Adam Phillippy**. "Weighted minimizer sampling improves long read mapping". *Bioinformatics (ISMB proceedings)*, 2020.
+- **Chirag Jain, Arang Rhie, Haowen Zhang, Chaudia Chu, Brian Walenz, Sergey Koren and Adam Phillippy**. "[Weighted minimizer sampling improves long read mapping](https://doi.org/10.1093/bioinformatics/btaa435)". *Bioinformatics (ISMB proceedings)*, 2020.
