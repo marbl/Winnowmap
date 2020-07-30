@@ -312,7 +312,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	if (opt_2->SVaware && qlens[0] >= opt_2->SVawareMinReadLength)
 	{
 		//parallelize single read alignment further for better load balance
-#pragma omp parallel num_threads(3)
+#pragma omp parallel num_threads(OMP_PER_READ_THREADS)
 		{
 			//make all these variables private to openmp thread by redefining them
 			int i, j, rep_len, qlen_sum, n_regs0, n_mini_pos;

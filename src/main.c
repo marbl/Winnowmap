@@ -410,7 +410,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (mm_verbose >= 3) {
-		fprintf(stderr, "[M::%s] Version: %s\n", __func__, MM_VERSION);
+		fprintf(stderr, "[M::%s] Version: %s, pthreads=%d, omp_threads=%d\n", __func__, MM_VERSION, n_threads, OMP_PER_READ_THREADS);
 		fprintf(stderr, "[M::%s] CMD:", __func__);
 		for (i = 0; i < argc; ++i)
 			fprintf(stderr, " %s", argv[i]);

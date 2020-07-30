@@ -46,6 +46,8 @@
 
 #define MM_MAX_SEG       255
 
+#define OMP_PER_READ_THREADS 3
+
 #ifdef __cplusplus
 extern "C" {
 #endif
