@@ -44,7 +44,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->min_ksw_len = 200;
 	opt->anchor_ext_len = 20, opt->anchor_ext_shift = 6;
 	opt->max_clip_ratio = 1.0f;
-	opt->mini_batch_size = 500000000;
+	opt->mini_batch_size = 1000000000;
 
 	opt->pe_ori = 0; // FF
 	opt->pe_bonus = 33;

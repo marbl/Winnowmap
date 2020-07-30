@@ -6,6 +6,7 @@
 #include "minimap.h"
 #include "mmpriv.h"
 #include "ketopt.h"
+#include <thread>
 
 #define MM_VERSION "1.1"
 
@@ -111,7 +112,8 @@ int main(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
-	int i, c, n_threads = 3, n_parts, old_best_n = -1;
+	int i, c, n_threads = std::max(3, (int) std::thread::hardware_concurrency()/2), n_parts, old_best_n = -1;
+	//for best performance, we recommend running winnowmap with half of HT cores available
 	char *fnw = 0, *rg = 0, *junc_bed = 0, *s;
 	FILE *fp_help = stderr;
 	mm_idx_reader_t *idx_rdr;
