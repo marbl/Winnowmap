@@ -207,7 +207,7 @@ merylOperation::countSimple(void) {
       uint64  kEnd   = (bp << wSuffix) | sMask;
       uint64  nKmers = 0;
 
-#if 1
+#if 0
       fprintf(stderr, "thread %2d working on block 0x%08lx<0x%08lx<0x%08lx %8lu kmers between 0x%016lx and 0x%016lx\n",
               omp_get_thread_num(),
               bStart, bp, bEnd,

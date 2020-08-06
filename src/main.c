@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    --MD         output the MD tag\n");
 		fprintf(fp_help, "    --eqx        write =/X CIGAR operators\n");
 		fprintf(fp_help, "    -Y           use soft clipping for supplementary alignments\n");
-		fprintf(fp_help, "    -t INT       number of threads [%d]\n", n_threads);
+		fprintf(fp_help, "    -t INT       manually set pthread count rather than automatically\n");
 		fprintf(fp_help, "    -K NUM       minibatch size for mapping [500M]\n");
 //		fprintf(fp_help, "    -v INT       verbose level [%d]\n", mm_verbose);
 		fprintf(fp_help, "    --version    show version number\n");
@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
 		{
 			fprintf(stderr, "[M::%s::%.3f*%.2f] running winnowmap in SV-aware mode\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0));
-			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters minP:%d, incP:%0.3f, maxP:%d, sample:%d, min-qlen:%d, min-qcov:%0.1f, min-mapq:%d, mid-occ:%d\n",
+			fprintf(stderr, "[M::%s::%.3f*%.2f] stage1-specific parameters minP:%d, incP:%0.2f, maxP:%d, sample:%d, min-qlen:%d, min-qcov:%0.1f, min-mapq:%d, mid-occ:%d\n",
 					__func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0),
 					opt.minPrefixLength, opt.prefixIncrementFactor, opt.maxPrefixLength, opt.suffixSampleOffset, opt.SVawareMinReadLength, opt.min_qcov, opt.min_mapq, opt.mid_occ);
 			fprintf(stderr, "[M::%s::%.3f*%.2f] stage2-specific parameters s2_bw:%d, s2_zdropinv:%d\n",
