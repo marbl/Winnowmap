@@ -8,7 +8,7 @@
 #include "ketopt.h"
 #include <thread>
 
-#define MM_VERSION "1.1"
+#define MM_VERSION "1.11"
 
 #ifdef __linux__
 #include <sys/resource.h>
