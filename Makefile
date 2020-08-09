@@ -1,4 +1,5 @@
 CPPFLAGS= -DHAVE_KALLOC -fopenmp -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable
+CFLAGS= -g -Wall -O2 #-Wextra
 LIBS= -lm -lz -lpthread
 
 all:winnowmap

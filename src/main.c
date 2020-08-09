@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
 	int i, c, n_threads = std::max(3, (int) std::thread::hardware_concurrency()/2), n_parts, old_best_n = -1;
-	//for best performance, we recommend running winnowmap with half of HT cores available
+	//by default, we set pthread count to half of hardware supported threads
 	char *fnw = 0, *rg = 0, *junc_bed = 0, *s;
 	FILE *fp_help = stderr;
 	mm_idx_reader_t *idx_rdr;

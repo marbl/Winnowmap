@@ -7,9 +7,12 @@ To address the above problem, Winnowmap implements a novel **weighted minimizer*
 
 ## Compile
 
-Winnowmap requires C++ compiler with c++11 and openmp, which are available by default in GCC >= 4.8. 
+Clone source code from master branch or download the [latest release](https://github.com/marbl/Winnowmap/releases/latest).
   ```sh
 	git clone https://github.com/marbl/Winnowmap.git
+  ```
+Winnowmap compilation requires C++ compiler with c++11 and openmp, which are available by default in GCC >= 4.8.
+  ```sh
 	cd Winnowmap
 	make -j8
   ```
