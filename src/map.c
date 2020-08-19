@@ -684,6 +684,9 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	opt_3->zdrop_inv = std::min (opt->zdrop_inv, opt->stage2_zdrop_inv);
 	opt_3->bw= std::max(opt->bw, opt->stage2_bw);
 
+	//increase gap to compensate for sometimes missing seeds along correct alignments
+	opt_3->max_gap = std::max(opt->max_gap, opt->maxPrefixLength);
+
 	//Re-run mapping with the above selected anchors
 	{
 		for (i = 0, qlen_sum = 0; i < n_segs; ++i)
