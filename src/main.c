@@ -329,15 +329,16 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    --eqx        write =/X CIGAR operators\n");
 		fprintf(fp_help, "    -Y           use soft clipping for supplementary alignments\n");
 		fprintf(fp_help, "    -t INT       manually set pthread count rather than automatically\n");
-		fprintf(fp_help, "    -K NUM       minibatch size for mapping [500M]\n");
+		fprintf(fp_help, "    -K NUM       minibatch size for mapping [1000M]\n");
 //		fprintf(fp_help, "    -v INT       verbose level [%d]\n", mm_verbose);
 		fprintf(fp_help, "    --version    show version number\n");
 		fprintf(fp_help, "  Preset:\n");
 		fprintf(fp_help, "    -x STR       preset (always applied before other options) []\n");
-		fprintf(fp_help, "                 - map-ont (Nanopore vs reference, uses default param)\n");
-		fprintf(fp_help, "                 - map-pb (PacBio-hifi vs reference, all defaults but does finer read fragmentation in SV-aware mapping)\n");
-		fprintf(fp_help, "                 - map-pb-clr (PacBio-CLR vs reference, sets --sv-off)\n");
-		fprintf(fp_help, "                 - asm20 (assembly vs reference, uses -k19 -A1 -B4 -O6,26 -E2,1 -s200 -z200)\n");
+		fprintf(fp_help, "                 - map-ont (ont-to-ref, uses default param)\n");
+		fprintf(fp_help, "                 - map-pb (hifi-to-ref, all defaults but does finer read fragmentation in SV-aware mapping)\n");
+		fprintf(fp_help, "                 - map-pb-clr (clr-to-ref, sets --sv-off)\n");
+		fprintf(fp_help, "                 - splice/splice:hq - long-read/Pacbio-CCS spliced alignment, sets --sv-off\n");
+		fprintf(fp_help, "                 - asm5/asm10/asm20 - asm-to-ref mapping\n");
 		return fp_help == stdout? 0 : 1;
 	}
 

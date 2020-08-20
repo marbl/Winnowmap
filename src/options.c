@@ -108,6 +108,19 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 		io->flag = 0, io->k = 19;
 		mo->a = 1, mo->b = 4, mo->q = 6, mo->q2 = 26, mo->e = 2, mo->e2 = 1, mo->zdrop = mo->zdrop_inv = 200;
 		mo->min_dp_max = 200;
+	} else if (strncmp(preset, "splice", 6) == 0 || strcmp(preset, "cdna") == 0) {
+		mo->SVaware = false; //turn off SV-aware mode
+		/*io->w = 5;*/
+		io->w = 25;
+		io->flag = 0, io->k = 15;
+		mo->flag |= MM_F_SPLICE | MM_F_SPLICE_FOR | MM_F_SPLICE_REV | MM_F_SPLICE_FLANK;
+		mo->max_gap = 2000, mo->max_gap_ref = mo->bw = 200000;
+		mo->a = 1, mo->b = 2, mo->q = 2, mo->e = 1, mo->q2 = 32, mo->e2 = 0;
+		mo->noncan = 9;
+		mo->junc_bonus = 9;
+		mo->zdrop = 200, mo->zdrop_inv = 100; // because mo->a is halved
+		if (strcmp(preset, "splice:hq") == 0)
+			mo->junc_bonus = 5, mo->b = 4, mo->q = 6, mo->q2 = 24;
 	} else return -1;
 	return 0;
 }
