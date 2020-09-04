@@ -458,7 +458,10 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 								collect_n_a[suffix_id] = regs0[j].cnt;
 
 								if (mm_dbg_flag & MM_DBG_POLISH)
-									fprintf(stderr, "PO\tqname:%s, suffid:%d, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, suffix_id, sub_begin, sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+								{
+									//print MCAS information in paf-like  format, helpful for debugging & dot-plotting MCAS alignments
+									fprintf(stderr, "PO\t%s %d %d %d %c %s %d %d %d %d %d %d %d [FOUND] \n", qname, qlens[0], sub_begin + regs0[j].qs, sub_begin + regs0[j].qe, "+-"[regs0[j].rev] , mi->seq[regs0[j].rid].name, mi->seq[regs0[j].rid].len, regs0[j].rs, regs0[j].re, regs0[j].mapq, suffix_id, sub_begin, sub_len);
+								}
 
 								break;		
 							}
@@ -620,7 +623,10 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 								collect_n_a[suffix_id] = regs0[j].cnt;
 
 								if (mm_dbg_flag & MM_DBG_POLISH)
-									fprintf(stderr, "PO\tqname:%s, suffid:%d, begin:%d, len:%d, rs:%d, re:%d, qs:%d, qe: %d, mapq: %d [FOUND] \n", qname, suffix_id, sub_begin, -1 * sub_len, regs0[j].rs, regs0[j].re, regs0[j].qs, regs0[j].qe, regs0[j].mapq);
+								{
+									//print MCAS information in paf-like  format, helpful for debugging & dot-plotting MCAS alignments
+									fprintf(stderr, "PO\t%s %d %d %d %c %s %d %d %d %d %d %d %d [FOUND] \n", qname, qlens[0], sub_begin - sub_len + regs0[j].qs, sub_begin - sub_len + regs0[j].qe, "+-"[regs0[j].rev] , mi->seq[regs0[j].rid].name, mi->seq[regs0[j].rid].len, regs0[j].rs, regs0[j].re, regs0[j].mapq, suffix_id, sub_begin, -1 * sub_len);
+								}
 
 								break;	
 							}
