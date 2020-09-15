@@ -132,9 +132,12 @@ typedef struct {
 	int minPrefixLength;
 	int maxPrefixLength;
 	float prefixIncrementFactor;
-	//stage 2 parameters
-	int stage2_bw, stage2_zdrop_inv;
 
+	//stage 2 parameters
+	int stage2_bw;
+	int stage2_zdrop_inv;
+	int stage2_max_gap;
+	int stage2_extension_inc;
 
 	float mask_level;
 	float pri_ratio;

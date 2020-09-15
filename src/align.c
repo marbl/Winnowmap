@@ -562,7 +562,7 @@ static void mm_fix_bad_ends_splice(void *km, const mm_mapopt_t *opt, const mm_id
 	}
 }
 
-static void mm_align1(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int qlen, uint8_t *qseq0[2], mm_reg1_t *r, mm_reg1_t *r2, int n_a, mm128_t *a, ksw_extz_t *ez, int splice_flag)
+static void mm_align1(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int qlen, uint8_t *qseq0[2], mm_reg1_t *r, mm_reg1_t *r2, int n_a, mm128_t *a, ksw_extz_t *ez, int splice_flag, bool finalstage)
 {
 	int is_sr = !!(opt->flag & MM_F_SR), is_splice = !!(opt->flag & MM_F_SPLICE);
 	int32_t rid = a[r->as].x<<1>>33, rev = a[r->as].x>>63, as1, cnt1;
@@ -637,12 +637,16 @@ static void mm_align1(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int 
 				}
 			}
 		}
+
+		//increase extension lengths during final stage
+		//may help if mcas are missing in identical repeats
+		int inc=1; if (finalstage) inc=opt->stage2_extension_inc;
 		if (qs > 0 && rs > 0) {
-			l = qs < opt->max_gap? qs : opt->max_gap;
+			l = qs < inc*opt->max_gap? qs : inc*opt->max_gap;
 			qs1 = qs1 > qs - l? qs1 : qs - l;
 			qs0 = qs0 < qs1? qs0 : qs1; // at least include qs0
 			l += l * opt->a > opt->q? (l * opt->a - opt->q) / opt->e : 0;
-			l = l < opt->max_gap? l : opt->max_gap;
+			l = l < inc*opt->max_gap? l : inc*opt->max_gap;
 			l = l < rs? l : rs;
 			rs1 = rs1 > rs - l? rs1 : rs - l;
 			rs0 = rs0 < rs1? rs0 : rs1;
@@ -664,11 +668,11 @@ static void mm_align1(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int 
 			}
 		}
 		if (qe < qlen && re < (int32_t)mi->seq[rid].len) {
-			l = qlen - qe < opt->max_gap? qlen - qe : opt->max_gap;
+			l = qlen - qe < inc*opt->max_gap? qlen - qe : inc*opt->max_gap;
 			qe1 = qe1 < qe + l? qe1 : qe + l;
 			qe0 = qe0 > qe1? qe0 : qe1; // at least include qe0
 			l += l * opt->a > opt->q? (l * opt->a - opt->q) / opt->e : 0;
-			l = l < opt->max_gap? l : opt->max_gap;
+			l = l < inc*opt->max_gap? l : inc*opt->max_gap;
 			l = l < (int32_t)mi->seq[rid].len - re? l : mi->seq[rid].len - re;
 			re1 = re1 < re + l? re1 : re + l;
 			re0 = re0 > re1? re0 : re1;
@@ -861,7 +865,7 @@ static inline mm_reg1_t *mm_insert_reg(const mm_reg1_t *r, int i, int *n_regs, m
 	return regs;
 }
 
-mm_reg1_t *mm_align_skeleton(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int qlen, const char *qstr, int *n_regs_, mm_reg1_t *regs, mm128_t *a)
+mm_reg1_t *mm_align_skeleton(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int qlen, const char *qstr, int *n_regs_, mm_reg1_t *regs, mm128_t *a, bool finalstage)
 {
 	extern unsigned char seq_nt4_table[256];
 	int32_t i, n_regs = *n_regs_, n_a;
@@ -885,8 +889,8 @@ mm_reg1_t *mm_align_skeleton(void *km, const mm_mapopt_t *opt, const mm_idx_t *m
 			mm_reg1_t s[2], s2[2];
 			int which, trans_strand;
 			s[0] = s[1] = regs[i];
-			mm_align1(km, opt, mi, qlen, qseq0, &s[0], &s2[0], n_a, a, &ez, MM_F_SPLICE_FOR);
-			mm_align1(km, opt, mi, qlen, qseq0, &s[1], &s2[1], n_a, a, &ez, MM_F_SPLICE_REV);
+			mm_align1(km, opt, mi, qlen, qseq0, &s[0], &s2[0], n_a, a, &ez, MM_F_SPLICE_FOR, finalstage);
+			mm_align1(km, opt, mi, qlen, qseq0, &s[1], &s2[1], n_a, a, &ez, MM_F_SPLICE_REV, finalstage);
 			if (s[0].p->dp_score > s[1].p->dp_score) which = 0, trans_strand = 1;
 			else if (s[0].p->dp_score < s[1].p->dp_score) which = 1, trans_strand = 2;
 			else trans_strand = 3, which = (qlen + s[0].p->dp_score) & 1; // randomly choose a strand, effectively
@@ -899,7 +903,7 @@ mm_reg1_t *mm_align_skeleton(void *km, const mm_mapopt_t *opt, const mm_idx_t *m
 			}
 			regs[i].p->trans_strand = trans_strand;
 		} else { // one round of alignment
-			mm_align1(km, opt, mi, qlen, qseq0, &regs[i], &r2, n_a, a, &ez, opt->flag);
+			mm_align1(km, opt, mi, qlen, qseq0, &regs[i], &r2, n_a, a, &ez, opt->flag, finalstage);
 			if (opt->flag&MM_F_SPLICE)
 				regs[i].p->trans_strand = opt->flag&MM_F_SPLICE_FOR? 1 : 2;
 		}
