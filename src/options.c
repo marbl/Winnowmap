@@ -62,7 +62,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 	opt->stage2_zdrop_inv = 25;
 	opt->stage2_bw = 2000;
 	opt->stage2_max_gap = opt->maxPrefixLength;
-	opt->stage2_extension_inc = 2;
+	opt->stage2_extension_inc = 1; //can be increased if longer extension is preferred
 }
 
 void mm_mapopt_update(mm_mapopt_t *opt, const mm_idx_t *mi)
