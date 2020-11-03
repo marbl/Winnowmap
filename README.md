@@ -1,7 +1,7 @@
 Winnowmap
 ========================================================================
 
-Winnowmap is a long-read mapping algorithm optimized for mapping ONT / PacBio reads to repetitive reference sequences. Winnowmap development began on top of [minimap2](https://github.com/lh3/minimap2/) codebase, and since then we have incorporated the following two ideas to improve mapping accuracy within repeats. 
+Winnowmap is a long-read mapping algorithm optimized for mapping ONT and PacBio reads to repetitive reference sequences. Winnowmap development began on top of [minimap2](https://github.com/lh3/minimap2/) codebase, and since then we have incorporated the following two ideas to improve mapping accuracy within repeats. 
 
 - Winnowmap implements a novel **weighted minimizer** sampling algorithm. This optimization was motivated by the need to avoid masking of frequently occurring k-mers during the seeding stage in an efficient manner, and achieve better mapping accuracy in complex repeats (e.g., long tandem repeats) of the human genome. Using weighted minimizers, Winnowmap down-weights frequently occurring k-mers, thus reducing their chance of getting selected as minimizers. Users can refer to [this paper](https://doi.org/10.1093/bioinformatics/btaa435) for more details. This idea is helpful to preserve the [theoretical guarantee](http://www.cs.toronto.edu/~wayne/research/papers/minimizers.pdf) of minimizer sampling technique, i.e., if two sequences share a substring of a specified length, then they must be guaranteed to have a matching minimizer.   
 
@@ -52,7 +52,7 @@ When comparing Winnowmap (v1.0) to minimap2 (v2.17-r954), we observed a reductio
 Minimizer sampling density using a human X chromosome as the reference, with the centromere positioned between 58 Mbp and 61 Mbp. ‘Standard’ method refers to the classic minimizer sampling algorithm from <a href="http://www.cs.toronto.edu/~wayne/research/papers/minimizers.pdf">Roberts et al.</a>, without any masking or modification.
 </p>
 
-## Publication
+## Publications
 
-- **Chirag Jain, Arang Rhie, Haowen Zhang, Chaudia Chu, Brian Walenz, Sergey Koren and Adam Phillippy**. "[Weighted minimizer sampling improves long read mapping](https://doi.org/10.1093/bioinformatics/btaa435)". *Bioinformatics (ISMB proceedings)*, 2020.
 - **Chirag Jain, Arang Rhie, Nancy Hansen, Sergey Koren and Adam Phillippy**. "[A long read mapping method for highly repetitive reference sequences](https://doi.org/10.1101/2020.11.01.363887)". *BioRxiv*, 2020.
+- **Chirag Jain, Arang Rhie, Haowen Zhang, Chaudia Chu, Brian Walenz, Sergey Koren and Adam Phillippy**. "[Weighted minimizer sampling improves long read mapping](https://doi.org/10.1093/bioinformatics/btaa435)". *Bioinformatics (ISMB proceedings)*, 2020.
