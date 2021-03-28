@@ -301,12 +301,14 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 	mm_mapopt_t *opt_2 = &opt2;
 	opt_2->best_n = std::max(5, opt_2->best_n); //set minimum
 
-
 	int countStartingPositions = 1 + std::ceil(qlens[0] * 1.0 / opt_2->suffixSampleOffset);
 	collect_a = (mm128_t**)kmalloc(b->km, countStartingPositions * sizeof(mm128_t*)); 
 	collect_n_a = (int64_t *)kmalloc(b->km, countStartingPositions * sizeof(int64_t));
 	memset(collect_n_a, 0, countStartingPositions * sizeof(int64_t));
 
+	//create a boolean vector to indicate what portion of read were mapped using MCASs
+	int8_t* seqMapped = (int8_t *)kmalloc(b->km, qlens[0] * sizeof(int8_t));
+	memset(seqMapped, 0, qlens[0] * sizeof(int8_t));
 
 	//check if SVaware mode enabled and query length is sufficient
 	if (opt_2->SVaware && qlens[0] >= opt_2->SVawareMinReadLength)
@@ -492,6 +494,13 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 									_a_.y += sub_begin;
 								collect_a[suffix_id][i] = _a_;					
 							}
+
+							//mark mapped interval in boolean vector
+#pragma omp critical
+							{
+								for(i = sub_begin; i < sub_begin + sub_len; i++)
+									seqMapped[i] = 1;
+							}
 						}
 
 						for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
@@ -657,6 +666,13 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 									_a_.y += sub_begin - sub_len + 1;		//offset of first base of substring
 								collect_a[suffix_id][i] = _a_;					
 							}
+
+							//mark mapped interval in boolean vector
+#pragma omp critical
+							{
+								for(i = sub_begin - sub_len +1; i <= sub_begin; i++)
+									seqMapped[i] = 1;
+							}
 						}
 
 						for (j = 0; j < n_regs0; ++j) {free (regs0[j].p);}
@@ -681,6 +697,13 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			kfree(b->km, sub_seqs);
 			mm_tbuf_destroy(b);
 		}
+	}
+
+	if (mm_dbg_flag & MM_DBG_POLISH)
+	{
+		int mappedcnt = 0;
+		for (i = 0; i < qlens[0]; i++) if (seqMapped[i]) mappedcnt++;
+		fprintf(stderr, "PO\tqname:%s, count of mapped query bases = %d among %d\n", qname, mappedcnt, qlens[0]);
 	}
 
 	//define new set of options for next stage
@@ -711,7 +734,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			n_a += collect_n_a[i];
 
 		if ((mm_dbg_flag & MM_DBG_POLISH) && opt->SVaware)
-			fprintf(stderr, "PO\tqname: %s, n_a (before filtering and checking for duplicates) :%" PRId64 "\n", qname, n_a);
+			fprintf(stderr, "PO\tqname:%s, n_a (before filtering and checking for duplicates) :%" PRId64 "\n", qname, n_a);
 
 		if (n_a)
 		{
@@ -743,7 +766,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			n_a = n_a_unique;
 
 			if (mm_dbg_flag & MM_DBG_POLISH)
-				fprintf(stderr, "PO\tqname: %s, n_a (after filtering and checking for duplicates) :%" PRId64 ", min_cnt:%d\n", qname, n_a, opt_3->min_cnt);
+				fprintf(stderr, "PO\tqname:%s, n_a (after filtering and checking for duplicates) :%" PRId64 ", min_cnt:%d\n", qname, n_a, opt_3->min_cnt);
 
 			//sort anchors by reference position before moving on
 			radix_sort_128x(a, a + n_a);
@@ -755,7 +778,73 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			}
 		}
 
-		if (!n_a)
+	}
+
+	//collect additional anchors from unmapped intervals
+	{
+		//if we have found MCAS-based anchors, but with a few unmapped read intervals
+		int unmappedcnt = 0;
+		for (i = 0; i < qlens[0]; i++) if (seqMapped[i]==0) unmappedcnt++;
+		if (n_a > 0 && unmappedcnt > 0)
+		{
+			char **unmapped_seqs = (char **) kmalloc(b->km, 1 * sizeof(char*));
+			unmapped_seqs[0] = (char *)kmalloc(b->km, qlens[0] * sizeof(char));
+			for (i = 0; i < qlens[0]; i++)
+			{
+				if (seqMapped[i] > 0)
+					unmapped_seqs[0][i] = 'N';
+				else
+					unmapped_seqs[0][i] = seqs[0][i];
+			}
+
+			if (mm_dbg_flag & MM_DBG_POLISH)
+				fprintf(stderr, "PO\tqname:%s, n_a (before mapping the unmapped read substrings) :%" PRId64 "\n", qname, n_a);
+
+			mm128_t *a_remaining;
+			int64_t n_a_remaining;
+			mv = {0,0,0};
+			collect_minimizers(b->km, opt_3, mi, n_segs, qlens, unmapped_seqs, &mv);
+
+			if (opt_3->flag & MM_F_HEAP_SORT)
+				a_remaining = collect_seed_hits_heap(b->km, opt_3, opt_3->mid_occ, mi, qname, &mv, qlen_sum, &n_a_remaining, &rep_len, &n_mini_pos, &mini_pos);
+			else
+				a_remaining = collect_seed_hits(b->km, opt_3, opt_3->mid_occ, mi, qname, &mv, qlen_sum, &n_a_remaining, &rep_len, &n_mini_pos, &mini_pos);
+
+			kfree(b->km, mv.a);
+			kfree(b->km, mini_pos);
+
+			int64_t n_a_whole = n_a_remaining + n_a;
+			mm128_t *a_whole = (mm128_t*)kmalloc(b->km, n_a_whole * sizeof(mm128_t));
+
+			for (i=0; i<n_a; i++)
+			{
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+				a_whole[i] = a[i];
+			}
+
+			for (i=n_a; i<n_a_whole; i++)
+			{
+				a_whole[i] = a_remaining[i-n_a];
+			}
+
+			//sort anchors by reference position before moving on
+			radix_sort_128x(a_whole, a_whole + n_a_whole);
+
+			kfree(b->km, a);
+			kfree(b->km, a_remaining);
+			a = a_whole;
+			n_a = n_a_whole;
+
+			kfree(b->km, unmapped_seqs[0]);
+			kfree(b->km, unmapped_seqs);
+
+			if (mm_dbg_flag & MM_DBG_POLISH)
+				fprintf(stderr, "PO\tqname:%s, n_a (after mapping the unmapped read substrings) :%" PRId64 "\n", qname, n_a);
+		}
+	}
+
+	{
+		if (!n_a) //MCAS-method couldn't be used
 		{
 			//go with the default route
 			if ((mm_dbg_flag & MM_DBG_POLISH) && opt->SVaware)
@@ -868,6 +957,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 
 	kfree(b->km, collect_a);
 	kfree(b->km, collect_n_a);
+	kfree(b->km, seqMapped);
 
 	if (b->km) {
 		km_stat(b->km, &kmst);

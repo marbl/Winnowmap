@@ -638,15 +638,12 @@ static void mm_align1(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int 
 			}
 		}
 
-		//increase extension lengths during final stage
-		//may help if mcas are missing in identical repeats
-		int inc=1; if (finalstage) inc=opt->stage2_extension_inc;
 		if (qs > 0 && rs > 0) {
-			l = qs < inc*opt->max_gap? qs : inc*opt->max_gap;
+			l = qs < opt->max_gap? qs : opt->max_gap;
 			qs1 = qs1 > qs - l? qs1 : qs - l;
 			qs0 = qs0 < qs1? qs0 : qs1; // at least include qs0
 			l += l * opt->a > opt->q? (l * opt->a - opt->q) / opt->e : 0;
-			l = l < inc*opt->max_gap? l : inc*opt->max_gap;
+			l = l < opt->max_gap? l : opt->max_gap;
 			l = l < rs? l : rs;
 			rs1 = rs1 > rs - l? rs1 : rs - l;
 			rs0 = rs0 < rs1? rs0 : rs1;
@@ -668,11 +665,11 @@ static void mm_align1(void *km, const mm_mapopt_t *opt, const mm_idx_t *mi, int 
 			}
 		}
 		if (qe < qlen && re < (int32_t)mi->seq[rid].len) {
-			l = qlen - qe < inc*opt->max_gap? qlen - qe : inc*opt->max_gap;
+			l = qlen - qe < opt->max_gap? qlen - qe : opt->max_gap;
 			qe1 = qe1 < qe + l? qe1 : qe + l;
 			qe0 = qe0 > qe1? qe0 : qe1; // at least include qe0
 			l += l * opt->a > opt->q? (l * opt->a - opt->q) / opt->e : 0;
-			l = l < inc*opt->max_gap? l : inc*opt->max_gap;
+			l = l < opt->max_gap? l : opt->max_gap;
 			l = l < (int32_t)mi->seq[rid].len - re? l : mi->seq[rid].len - re;
 			re1 = re1 < re + l? re1 : re + l;
 			re0 = re0 > re1? re0 : re1;
