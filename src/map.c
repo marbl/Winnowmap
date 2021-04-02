@@ -756,8 +756,10 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			{
 				j = i;
 
-				while (std::tie(a[i].x, a[i].y) == std::tie(a[j].x, a[j].y))
+				while (j < n_a && std::tie(a[i].x, a[i].y) == std::tie(a[j].x, a[j].y))
 					j++;
+
+				//j will increment at least by one here
 
 				a[n_a_unique++] = a[i];
 				i = j;
