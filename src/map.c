@@ -1256,6 +1256,10 @@ int mm_map_file_frag(const mm_idx_t *idx, int n_segs, const char **fn, const mm_
 	if (opt->split_prefix)
 		pl.fp_split = mm_split_init(opt->split_prefix, idx);
 	pl_threads = n_threads == 1? 1 : (opt->flag&MM_F_2_IO_THREADS)? 3 : 2;
+	pl_threads = 1; 
+	//TODO: this change helped avoid seg-faults on Phoenix cluster (figure out why)
+	//GDB was indicating seg-faults in bseq.c 
+
 	kt_pipeline(pl_threads, worker_pipeline, &pl, 3);
 
 	free(pl.str.s);
