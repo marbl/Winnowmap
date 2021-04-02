@@ -18,7 +18,7 @@ Winnowmap compilation requires C++ compiler with c++11 and openmp, which are ava
 	cd Winnowmap
 	make -j8
   ```
-Expect `winnowmap` executable in `bin` folder. `meryl` executable should be downloaded separately from [here](https://github.com/marbl/meryl/releases/).
+Expect `winnowmap` and `meryl` executables in `bin` folder.
 
 ## Usage
 
