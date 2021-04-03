@@ -106,14 +106,14 @@ merylOperation::countSimple(void) {
 
         for (uint32 hib=0; hib < 64; hib++) {
           if (highBits[hib].isAllocated() == false) {
-            fprintf(stderr, "Increasing to %u-bit storage (for kmer 0x%s).\n",
-                    lowBitsSize + hib + 1, toHex(kidx));
+            fprintf(stderr, "Increasing to %u-bit storage (for kmer 0x%016lx).\n",
+                    lowBitsSize + hib + 1, kidx);
             highBits[hib].allocate(nEntries);
           }
 
-          if (highBits[hib].flipBit(kidx) == 0) {         //  If not set, set it,
-            highBitMax = std::max(highBitMax, hib + 1);   //  remember the possible maximum bit set,
-            break;                                        //  and stop.
+          if (highBits[hib].flipBit(kidx) == 0) {    //  If not set, set it,
+            highBitMax = max(highBitMax, hib + 1);   //  remember the possible maximum bit set,
+            break;                                   //  and stop.
           }
         }
       }
@@ -183,7 +183,7 @@ merylOperation::countSimple(void) {
 
   fprintf(stderr, "\n");
   fprintf(stderr, "Writing results to '%s', using " F_S32 " threads.\n",
-          _outputO->filename(), getMaxThreadsAllowed());
+          _outputO->filename(), omp_get_max_threads());
   fprintf(stderr, "             [ file ][  prefix ][  suffix ][ count-suffix ]\n");
   fprintf(stderr, "   widths    [    6 ][ %7u ][ %7u ][ %12u ]\n", wPrefix - 6, wSuffix, 2 * _countSuffixLength);
   fprintf(stderr, "   number    [   64 ][ %7lu ][ %7lu ][ %12s ]\n", nPrefix / 64, nSuffix, _countSuffixString);
@@ -207,7 +207,6 @@ merylOperation::countSimple(void) {
       uint64  kEnd   = (bp << wSuffix) | sMask;
       uint64  nKmers = 0;
 
-//CJ: avoid this print statment
 #if 0
       fprintf(stderr, "thread %2d working on block 0x%08lx<0x%08lx<0x%08lx %8lu kmers between 0x%016lx and 0x%016lx\n",
               omp_get_thread_num(),

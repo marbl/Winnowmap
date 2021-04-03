@@ -99,7 +99,7 @@ merylCountArray::merylCountArray(void) {
 
 
 uint64
-merylCountArray::initialize(uint64 prefix, uint32 width) {
+merylCountArray::initialize(uint64 prefix, uint32 width, uint32 segsize) {
   _sWidth       = width;
 
   _prefix       = prefix;
@@ -111,12 +111,9 @@ merylCountArray::initialize(uint64 prefix, uint32 width) {
   _bitsPerPage  = getPageSize() * 8;
   _nReAlloc     = 0;
 
-  //  Set the segment size, in bits, to be a multiple of the page size.
-  //  Reserve some space for OS allocator stuff (needs to be divisible by
-  //  64).
-  _segSize      = pagesPerSegment() * _bitsPerPage - 8 * 64;
-  _segAlloc     = 0;
-  _segments     = NULL;
+  _segSize      = 8 * (segsize * 1024 - 32);   //  Set the segment size to 'segsize' KB,
+  _segAlloc     = 0;                           //  in bits, reserving 32 bytes for
+  _segments     = NULL;                        //  allocator stuff that we don't control.
 
   _nBits        = 0;
   _nBitsTrigger = 0;
@@ -234,7 +231,7 @@ merylCountArray::removeSegments(void) {
   _nReAlloc  = 0;
 
   _segAlloc = 0;                          //  Don't forget to
-  _segments = NULL;                       //  forget about it.
+  _segments = NULL;                       //  foret about it.
 
   _nBits        = 0;                      //  Indicate that we've stored no data.
   _nBitsTrigger = 0;
@@ -255,18 +252,21 @@ void
 merylCountArray::addSegment(uint32 seg) {
 
   if (_segAlloc == 0) {
-    resizeArray(_segments, _segAlloc, _segAlloc, 64, _raAct::copyData | _raAct::clearNew);
+    resizeArray(_segments, _segAlloc, _segAlloc, 32, resizeArray_copyData | resizeArray_clearNew);
     _nReAlloc++;
   }
   if (seg >= _segAlloc) {
-    resizeArray(_segments, _segAlloc, _segAlloc, 2 * _segAlloc, _raAct::copyData | _raAct::clearNew);
+    resizeArray(_segments, _segAlloc, _segAlloc, 2 * _segAlloc, resizeArray_copyData | resizeArray_clearNew);
     _nReAlloc++;
   }
   assert(_segments[seg] == NULL);
 
+  //if (seg > 0)
+  //  fprintf(stderr, "Add segment %u\n", seg);
+
   _segments[seg] = new uint64 [_segSize / 64];
 
-  //memset(_segments[seg], 0, sizeof(uint64) * _segSize / 64);
+  memset(_segments[seg], 0, sizeof(uint64) * _segSize / 64);
 }
 
 
@@ -496,7 +496,7 @@ merylCountArray::add(kmdata suffix) {
   uint64  seg       = nBits / _segSize;    //  Which segment are we in?
   uint64  segPos    = nBits % _segSize;    //  Bit position in that segment.
 
-  _nBits += _sWidth;
+   _nBits += _sWidth;
 
   //  word position counts from high to low; 0 for the high bit and 63 for
   //  the bit that represents integer 1.
@@ -596,7 +596,7 @@ merylCountArray::add(kmdata suffix) {
 #endif
 
       _segments[seg][word+0] |= sta;
-      _segments[seg][word+1]  = end;
+      _segments[seg][word+1] |= end;
     }
 
     if (thrWord) {
@@ -618,8 +618,8 @@ merylCountArray::add(kmdata suffix) {
 #endif
 
       _segments[seg][word+0] |= sta;
-      _segments[seg][word+1]  = mid;
-      _segments[seg][word+2]  = end;
+      _segments[seg][word+1] |= mid;
+      _segments[seg][word+2] |= end;
     }
   }
 
@@ -704,7 +704,7 @@ merylCountArray::add(kmdata suffix) {
       assert(word+1 == _segSize/64-1);
 
       _segments[seg+0][word+0] |= sta;
-      _segments[seg+0][word+1]  = mid;
+      _segments[seg+0][word+1] |= mid;
     }
 
     //  Move kmer bits to one or two words in the next segment.
@@ -712,15 +712,15 @@ merylCountArray::add(kmdata suffix) {
     if (oneNext) {
       uint64  sta = (suffix << (64 - nextBits));
 
-      _segments[seg+1][0]  = sta;
+      _segments[seg+1][0] |= sta;
     }
 
     if (twoNext) {
       uint64  mid = (suffix >> (nextBits - 64));
       uint64  end = (suffix << (128 - nextBits));
 
-      _segments[seg+1][0]  = mid;
-      _segments[seg+1][1]  = end;
+      _segments[seg+1][0] |= mid;
+      _segments[seg+1][1] |= end;
     }
   }
 
@@ -763,8 +763,8 @@ merylCountArray::get(uint64 kk) {
 
   //  If the bits are entirely in one word, be done.
 
-  if (wordEnd <= 64) {
-    bits = (_segments[seg][word] >> (64 - wordEnd)) & buildLowBitMask<uint64>(_sWidth);
+  if ((wordBgn >= 0) && (wordEnd <= 64)) {
+    bits = (_segments[seg][word] >> (64 - wordEnd)) & uint64MASK(_sWidth);
 
     return(bits);
   }

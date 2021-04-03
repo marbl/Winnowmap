@@ -46,7 +46,6 @@ enum merylOp {
   opDecrease,
   opMultiply,
   opDivide,
-  opDivideRound,
   opModulo,
 
   opUnion,
@@ -61,8 +60,6 @@ enum merylOp {
 
   opDifference,
   opSymmetricDifference,
-
-  opSubtract,	// if count(a) >= count(b), keep count(a)-count(b). else, discard.
 
   opHistogram,
   opStatistics,
@@ -157,21 +154,17 @@ public:
     return(isCounting() == false);
   };
 
-  bool    needsThreshold(void) {
+  bool    needsParameter(void) {
     return((_operation == opLessThan)     ||
            (_operation == opGreaterThan)  ||
            (_operation == opAtLeast)      ||
            (_operation == opAtMost)       ||
            (_operation == opEqualTo)      ||
-           (_operation == opNotEqualTo));
-  };
-
-  bool    needsConstant(void) {
-    return((_operation == opIncrease)     ||
+           (_operation == opNotEqualTo)   ||
+           (_operation == opIncrease)     ||
            (_operation == opDecrease)     ||
            (_operation == opMultiply)     ||
            (_operation == opDivide)       ||
-           (_operation == opDivideRound)  ||
            (_operation == opModulo));
   };
 
@@ -234,9 +227,8 @@ private:
   void    findMinCount(void);
   void    findMaxCount(void);
   void    findSumCount(void);
-  void    subtractCount(void);
 
-  std::vector<merylInput *>      _inputs;
+  vector<merylInput *>           _inputs;
   bool                           _isMultiSet = false;
 
   merylOp                        _operation = opNothing;

@@ -1,29 +1,35 @@
+
+#  If 'make' isn't run from the root directory, we need to set these to
+#  point to the upper level build directory.
+ifeq "$(strip ${BUILD_DIR})" ""
+  BUILD_DIR    := ../$(OSTYPE)-$(MACHINETYPE)/obj
+endif
+ifeq "$(strip ${TARGET_DIR})" ""
+  TARGET_DIR   := ../$(OSTYPE)-$(MACHINETYPE)
+endif
+
 TARGET   := meryl-lookup
-SOURCES  := meryl-lookup.C \
-            dump.C \
-            existence.C \
-            include-exclude.C
+SOURCES  := meryl-lookup.C
 
-SRC_INCDIRS := .
+SRC_INCDIRS  := . ../utility/src/utility ../meryl
 
-#  If we're part of Canu, build with canu support and use Canu's copy of
-#  meryl-utility.  Otherwise, don't.
+#  If we're part of Canu, build with canu support.
+#  Otherwise, don't.
+
 ifneq ($(wildcard stores/sqStore.H), )
-  SRC_CXXFLAGS := -DCANU
-  SRC_INCDIRS  += ../../../utility/src/utility ../../../stores
 
-#  If we're part of something else, include the something else's
-#  utility directory.
-else ifneq ($(wildcard meryl/src/meryl/meryl.C), )
-  SRC_INCDIRS  += ../../../utility/src/utility
+SRC_CXXFLAGS := -DCANU
 
-#  Otherwise, we're building directly in the meryl repo.
+TGT_LDFLAGS := -L${TARGET_DIR}/lib
+TGT_LDLIBS  := -lcanu
+TGT_PREREQS := libcanu.a
+
 else
-  SRC_INCDIRS  += ../utility/src/utility
+
+TGT_LDFLAGS := -L${TARGET_DIR}/lib
+TGT_LDLIBS  := -lmeryl
+TGT_PREREQS := libmeryl.a
 
 endif
 
-
-TGT_LDFLAGS  := -L${TARGET_DIR}/lib
-TGT_LDLIBS   := -l${MODULE}
-TGT_PREREQS  := lib${MODULE}.a
+SUBMAKEFILES :=

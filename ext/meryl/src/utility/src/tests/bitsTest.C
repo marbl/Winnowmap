@@ -18,31 +18,11 @@
  */
 
 #include "bits.H"
-#include "strings.H"
 #include "mt19937ar.H"
 
 char          b1[65];
 char          b2[65];
 char          b3[65];
-
-
-void
-testMasks(void) {
-  uint128  m128;
-  uint64   m64;
-  uint32   m32;
-  uint16   m16;
-  uint8    m8;
-
-  for (uint32 ii=0; ii<=128; ii++) {
-    fprintf(stderr, "%3d: %s %s  %s %s  %s %s  %s %s  %s %s\n", ii,
-            toHex(buildLowBitMask<uint128>(ii)), toHex(buildHighBitMask<uint128>(ii)),
-            toHex(buildLowBitMask<uint64> (ii)), toHex(buildHighBitMask<uint64> (ii)),
-            toHex(buildLowBitMask<uint32> (ii)), toHex(buildHighBitMask<uint32> (ii)),
-            toHex(buildLowBitMask<uint16> (ii)), toHex(buildHighBitMask<uint16> (ii)),
-            toHex(buildLowBitMask<uint8>  (ii)), toHex(buildHighBitMask<uint8>  (ii)));
-  }
-}
 
 
 void
@@ -127,7 +107,7 @@ testBitArray(uint64 maxLength) {
 
 void
 testWordArray(uint64 wordSize) {
-  wordArray  *wa = new wordArray(wordSize, 8 * 64, false);
+  wordArray  *wa = new wordArray(wordSize, 8 * 64);
 
   for (uint32 ii=0; ii<1000; ii++)
     wa->set(ii, 0xffffffff);
@@ -138,9 +118,7 @@ testWordArray(uint64 wordSize) {
   wa->show();
 
   for (uint32 ii=0; ii<1000; ii++)
-    assert(wa->get(ii) == (ii & buildLowBitMask<uint64>(wordSize)));
-
-  fprintf(stderr, "Passed!\n");
+    assert(wa->get(ii) == (ii & uint64MASK(wordSize)));
 
   delete wa;
 }
@@ -294,7 +272,7 @@ testPrefixFree(uint32 type) {
     length     += width[ii];
     histo[width[ii]]++;
 
-    random[ii]  =  mt.mtRandom64() & buildLowBitMask<uint64>(width[ii]);
+    random[ii]  =  mt.mtRandom64() & uint64MASK(width[ii]);
 
     if (random[ii] == 0)
       ii--;
@@ -451,10 +429,6 @@ main(int argc, char **argv) {
       err++;
     }
 
-    else if (strcmp(argv[arg], "-masks") == 0) {
-      testMasks();
-    }
-
     else if (strcmp(argv[arg], "-logbasetwo") == 0) {
       testLogBaseTwo();
     }
@@ -464,24 +438,19 @@ main(int argc, char **argv) {
     }
 
     else if (strcmp(argv[arg], "-bitarray") == 0) {
-      if (++arg >= argc)
-        fprintf(stderr, "ERROR: -bitarray needs word-size argument.\n"), exit(1);
+      uint64  maxLength = strtouint64(argv[++arg]);
 
-      testBitArray(strtouint64(argv[arg]));
+      testBitArray(maxLength);
     }
 
     else if (strcmp(argv[arg], "-wordarray") == 0) {
-      if (++arg >= argc)
-        fprintf(stderr, "ERROR: -wordarray needs word-size argument.\n"), exit(1);
+      uint64  wordSize = strtouint64(argv[++arg]);
 
-      testWordArray(strtouint64(argv[arg]));
+      testWordArray(wordSize);
     }
 
     else if (strcmp(argv[arg], "-unary") == 0) {
-      if (++arg >= argc)
-        fprintf(stderr, "ERROR: -unary needs max-size argument.\n"), exit(1);
-
-      uint32  maxSize = strtouint32(argv[arg]);
+      uint32  maxSize = strtouint32(argv[++arg]);
 
 #pragma omp parallel for
       for (uint32 xx=1; xx<=maxSize; xx++) {

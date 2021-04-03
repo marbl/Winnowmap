@@ -80,12 +80,12 @@ public:
       }
 
       while (_dataMax <= val)
-        resizeArray(_data, _dataLen, _dataMax, 2 * _dataMax, _raAct::copyData | _raAct::clearNew);
+        resizeArray(_data, _dataLen, _dataMax, 2 * _dataMax, resizeArray_copyData | resizeArray_clearNew);
 
       _data[val] += cnt;
       _dataSum   += cnt;
 
-      _dataLen = std::max(_dataLen, val + 1);
+      _dataLen = max(_dataLen, val + 1);
     }
 
     AS_UTL_closeFile(D);

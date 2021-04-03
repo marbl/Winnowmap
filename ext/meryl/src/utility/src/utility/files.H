@@ -21,7 +21,10 @@
 #define FILES_H
 
 #include "types.H"
+
 #include <vector>
+
+using namespace std;
 
 
 //  Provides a safe and reliable mechanism for reading / writing
@@ -48,8 +51,6 @@ void    AS_UTL_symlink(char const *pathToFile, char const *pathToLink);
 void    AS_UTL_unlink(char const *prefix, char separator='.', char const *suffix=NULL);
 
 void    AS_UTL_rename(char const *oldname, char const *newname);
-void    AS_UTL_rename(char const *oldprefix, char oldseparator, char const *oldsuffix,
-                      char const *newprefix, char newseparator, char const *newsuffix);
 
 bool    AS_UTL_makeReadOnly(char const *prefix, char separator='.', char const *suffix=NULL);
 bool    AS_UTL_makeWritable(char const *prefix, char separator='.', char const *suffix=NULL);
@@ -62,9 +63,6 @@ bool    directoryExists(char const *prefix, char separator='.', char const *suff
 off_t   AS_UTL_sizeOfFile(char const *path);
 off_t   AS_UTL_sizeOfFile(FILE *file);
 
-uint64  AS_UTL_timeOfFile(char const *path);
-uint64  AS_UTL_timeOfFile(FILE *file);
-
 off_t   AS_UTL_ftell(FILE *stream);
 void    AS_UTL_fseek(FILE *stream, off_t offset, int whence);
 
@@ -72,7 +70,7 @@ void    AS_UTL_fseek(FILE *stream, off_t offset, int whence);
 char const *findSharedFile(char const *relpath, char const *filename);
 
 //  Read a file-of-files into a vector
-void    AS_UTL_loadFileList(char const *fileName, std::vector<char const *> &FILE);
+void    AS_UTL_loadFileList(char const *fileName, vector<char const *> &FILE);
 
 FILE   *AS_UTL_openInputFile (char const *prefix, char separator='.', char const *suffix=NULL, bool doOpen=true);
 FILE   *AS_UTL_openOutputFile(char const *prefix, char separator='.', char const *suffix=NULL, bool doOpen=true);
@@ -223,19 +221,6 @@ AS_UTL_writeFastQ(FILE *f,
                   char  const *s, int sl,
                   uint8 const *q, int ql,   //  As Sanger QV, from integer values
                   char  const *h, ...);
-
-//  Writes FASTA or FASTQ, depending on what data is present and what format
-//  is explicitly desired.
-void
-outputSequence(FILE        *OUT,
-               char  const *outputName,
-               char  const *outputBases,
-               uint8 const *outputQuals,  uint32  outputBasesLen,
-               bool         isFASTA,
-               bool         isFASTQ,
-               bool         outputFASTA,
-               bool         outputFASTQ,
-               uint8        QV);
 
 
 #include "files-compressed.H"

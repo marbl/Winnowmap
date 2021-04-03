@@ -25,7 +25,15 @@
 #include "files.H"
 
 #include <algorithm>
-#include <atomic>
+
+//  Define this to enable testing that the width of the data element is greater than zero.  The
+//  uint64MASK() macro (bri.h) does not generate a mask for 0.  Compiler warnings are issued,
+//  because you shouldn't use this in production code.
+//
+//  As it's expensive, emit a warning if it's enabled.
+//
+//#define CHECK_WIDTH
+//#warning CHECK_WIDTH is EXPENSIVE
 
 
 //  Writing in the middle of data is toublesome.
@@ -59,64 +67,22 @@ displayWord(uint64 word, char *buffer=NULL) {
 };
 
 
-
-//  Generate a bit mask on the low (0x000fff) or high bits (0xfff000).
-//
-//  Algorithm:
-//   - set the return value to all 1's
-//   - shift left or right to keep the desired numBits in the word
-//   - reset to all 0's if the numBits is zero
-//     (if     zero, 'r & -0' == 'r & 0000..000)
-//     (if not zero, 'r & -1' == 'r & 1111..111)
-//   - reset to all 1's if the numBits is larger than the number of bits in the word
-//
-template<typename uintType>
-uintType
-buildLowBitMask(uint32 numBits) {
-  uintType  r;
-
-  r   = ~((uintType)0);
-  r >>= 8 * sizeof(uintType) - numBits;
-  r  &= -(uintType)(numBits != 0);
-  r  |= -(uintType)(numBits  > 8 * sizeof(uintType));
-
-  return(r);
-}
-
-template<typename uintType>
-uintType
-buildHighBitMask(uint32 numBits) {
-  uintType  r;
-
-  r   = ~((uintType)0);
-  r <<= 8 * sizeof(uintType) - numBits;
-  r  &= -(uintType)(numBits != 0);
-  r  |= -(uintType)(numBits  > 8 * sizeof(uintType));
-
-  return(r);
-}
-
-
-
 //  Return bits in a word:
 //    Keeping the rightmost 64-n bits (mask out the leftmost  n bits)
 //    Keeping the leftmost  64-n bits (mask out the rigthmost n bits)
 //
-inline uint64   clearLeftBits  (uint64 v,  uint32 l)  {  if (l >=  64) return(0);  return(v & (uint64max  >>        l));   };
-inline uint64    saveLeftBits  (uint64 v,  uint32 l)  {  if (l ==   0) return(0);  return(v & (uint64max  << (64  - l)));  };
-inline uint64   clearRightBits (uint64 v,  uint32 r)  {  if (r >=  64) return(0);  return(v & (uint64max  <<        r));   };
-inline uint64    saveRightBits (uint64 v,  uint32 r)  {  if (r ==   0) return(0);  return(v & (uint64max  >> (64  - r)));  };
+inline uint64   clearLeftBits  (uint64 v, uint32 l)  {  if (l >= 64) return(0);  return(v & (0xffffffffffffffffllu >>       l));   };
+inline uint64    saveLeftBits  (uint64 v, uint32 l)  {  if (l ==  0) return(0);  return(v & (0xffffffffffffffffllu << (64 - l)));  };
+inline uint64   clearRightBits (uint64 v, uint32 r)  {  if (r >= 64) return(0);  return(v & (0xffffffffffffffffllu <<       r));   };
+inline uint64    saveRightBits (uint64 v, uint32 r)  {  if (r ==  0) return(0);  return(v & (0xffffffffffffffffllu >> (64 - r)));  };
 
-inline uint64   clearMiddleBits(uint64  v, uint32 l, uint32 r)  { return( saveRightBits(v, r) |  saveLeftBits(v, l)); };
-inline uint64    saveMiddleBits(uint64  v, uint32 l, uint32 r)  { return(clearRightBits(v, r) & clearLeftBits(v, l)); };
+inline uint64   clearMiddleBits(uint64 v, uint32 l, uint32 r) {
+  return(saveRightBits(v, r) | saveLeftBits(v, l));
+};
 
-inline uint128  clearLeftBits  (uint128 v, uint32 l)  {  if (l >= 128) return(0);  return(v & (uint128max >>        l));   };
-inline uint128   saveLeftBits  (uint128 v, uint32 l)  {  if (l ==   0) return(0);  return(v & (uint128max << (128 - l)));  };
-inline uint128  clearRightBits (uint128 v, uint32 r)  {  if (r >= 128) return(0);  return(v & (uint128max <<        r));   };
-inline uint128   saveRightBits (uint128 v, uint32 r)  {  if (r ==   0) return(0);  return(v & (uint128max >> (128 - r)));  };
-
-inline uint128  clearMiddleBits(uint128 v, uint32 l, uint32 r)  { return( saveRightBits(v, r) |  saveLeftBits(v, l)); };
-inline uint128   saveMiddleBits(uint128 v, uint32 l, uint32 r)  { return(clearRightBits(v, r) & clearLeftBits(v, l)); };
+inline uint64    saveMiddleBits(uint64 v, uint32 l, uint32 r) {
+  return(clearRightBits(v, r) & clearLeftBits(v, l));
+};
 
 
 
@@ -128,23 +94,23 @@ inline uint128   saveMiddleBits(uint128 v, uint32 l, uint32 r)  { return(clearRi
 inline
 uint64
 reverseBits64(uint64 x) {
-  x = ((x >>  1) & 0x5555555555555555llu) | ((x <<  1) & 0xaaaaaaaaaaaaaaaallu);
-  x = ((x >>  2) & 0x3333333333333333llu) | ((x <<  2) & 0xccccccccccccccccllu);
-  x = ((x >>  4) & 0x0f0f0f0f0f0f0f0fllu) | ((x <<  4) & 0xf0f0f0f0f0f0f0f0llu);
-  x = ((x >>  8) & 0x00ff00ff00ff00ffllu) | ((x <<  8) & 0xff00ff00ff00ff00llu);
-  x = ((x >> 16) & 0x0000ffff0000ffffllu) | ((x << 16) & 0xffff0000ffff0000llu);
-  x = ((x >> 32) & 0x00000000ffffffffllu) | ((x << 32) & 0xffffffff00000000llu);
+  x = ((x >>  1) & uint64NUMBER(0x5555555555555555)) | ((x <<  1) & uint64NUMBER(0xaaaaaaaaaaaaaaaa));
+  x = ((x >>  2) & uint64NUMBER(0x3333333333333333)) | ((x <<  2) & uint64NUMBER(0xcccccccccccccccc));
+  x = ((x >>  4) & uint64NUMBER(0x0f0f0f0f0f0f0f0f)) | ((x <<  4) & uint64NUMBER(0xf0f0f0f0f0f0f0f0));
+  x = ((x >>  8) & uint64NUMBER(0x00ff00ff00ff00ff)) | ((x <<  8) & uint64NUMBER(0xff00ff00ff00ff00));
+  x = ((x >> 16) & uint64NUMBER(0x0000ffff0000ffff)) | ((x << 16) & uint64NUMBER(0xffff0000ffff0000));
+  x = ((x >> 32) & uint64NUMBER(0x00000000ffffffff)) | ((x << 32) & uint64NUMBER(0xffffffff00000000));
   return(x);
 }
 
 inline
 uint32
 reverseBits32(uint32 x) {
-  x = ((x >>  1) & 0x55555555lu) | ((x <<  1) & 0xaaaaaaaalu);
-  x = ((x >>  2) & 0x33333333lu) | ((x <<  2) & 0xcccccccclu);
-  x = ((x >>  4) & 0x0f0f0f0flu) | ((x <<  4) & 0xf0f0f0f0lu);
-  x = ((x >>  8) & 0x00ff00fflu) | ((x <<  8) & 0xff00ff00lu);
-  x = ((x >> 16) & 0x0000fffflu) | ((x << 16) & 0xffff0000lu);
+  x = ((x >>  1) & uint32NUMBER(0x55555555)) | ((x <<  1) & uint32NUMBER(0xaaaaaaaa));
+  x = ((x >>  2) & uint32NUMBER(0x33333333)) | ((x <<  2) & uint32NUMBER(0xcccccccc));
+  x = ((x >>  4) & uint32NUMBER(0x0f0f0f0f)) | ((x <<  4) & uint32NUMBER(0xf0f0f0f0));
+  x = ((x >>  8) & uint32NUMBER(0x00ff00ff)) | ((x <<  8) & uint32NUMBER(0xff00ff00));
+  x = ((x >> 16) & uint32NUMBER(0x0000ffff)) | ((x << 16) & uint32NUMBER(0xffff0000));
   return(x);
 }
 
@@ -152,17 +118,17 @@ reverseBits32(uint32 x) {
 inline
 uint64
 uint64Swap(uint64 x) {
-  x = ((x >>  8) & 0x00ff00ff00ff00ffllu) | ((x <<  8) & 0xff00ff00ff00ff00llu);
-  x = ((x >> 16) & 0x0000ffff0000ffffllu) | ((x << 16) & 0xffff0000ffff0000llu);
-  x = ((x >> 32) & 0x00000000ffffffffllu) | ((x << 32) & 0xffffffff00000000llu);
+  x = ((x >>  8) & uint64NUMBER(0x00ff00ff00ff00ff)) | ((x <<  8) & uint64NUMBER(0xff00ff00ff00ff00));
+  x = ((x >> 16) & uint64NUMBER(0x0000ffff0000ffff)) | ((x << 16) & uint64NUMBER(0xffff0000ffff0000));
+  x = ((x >> 32) & uint64NUMBER(0x00000000ffffffff)) | ((x << 32) & uint64NUMBER(0xffffffff00000000));
   return(x);
 }
 
 inline
 uint32
 uint32Swap(uint32 x) {
-  x = ((x >>  8) & 0x00ff00fflu) | ((x <<  8) & 0xff00ff00lu);
-  x = ((x >> 16) & 0x0000fffflu) | ((x << 16) & 0xffff0000lu);
+  x = ((x >>  8) & uint32NUMBER(0x00ff00ff)) | ((x <<  8) & uint32NUMBER(0xff00ff00));
+  x = ((x >> 16) & uint32NUMBER(0x0000ffff)) | ((x << 16) & uint32NUMBER(0xffff0000));
   return(x);
 }
 
@@ -177,23 +143,23 @@ uint16Swap(uint16 x) {
 inline
 uint32
 countNumberOfSetBits32(uint32 x) {
-  x = ((x >>  1) & 0x55555555lu) + (x & 0x55555555lu);
-  x = ((x >>  2) & 0x33333333lu) + (x & 0x33333333lu);
-  x = ((x >>  4) & 0x0f0f0f0flu) + (x & 0x0f0f0f0flu);
-  x = ((x >>  8) & 0x00ff00fflu) + (x & 0x00ff00fflu);
-  x = ((x >> 16) & 0x0000fffflu) + (x & 0x0000fffflu);
+  x = ((x >>  1) & uint32NUMBER(0x55555555)) + (x & uint32NUMBER(0x55555555));
+  x = ((x >>  2) & uint32NUMBER(0x33333333)) + (x & uint32NUMBER(0x33333333));
+  x = ((x >>  4) & uint32NUMBER(0x0f0f0f0f)) + (x & uint32NUMBER(0x0f0f0f0f));
+  x = ((x >>  8) & uint32NUMBER(0x00ff00ff)) + (x & uint32NUMBER(0x00ff00ff));
+  x = ((x >> 16) & uint32NUMBER(0x0000ffff)) + (x & uint32NUMBER(0x0000ffff));
   return(x);
 }
 
 inline
 uint64
 countNumberOfSetBits64(uint64 x) {
-  x = ((x >>  1) & 0x5555555555555555llu) + (x & 0x5555555555555555llu);
-  x = ((x >>  2) & 0x3333333333333333llu) + (x & 0x3333333333333333llu);
-  x = ((x >>  4) & 0x0f0f0f0f0f0f0f0fllu) + (x & 0x0f0f0f0f0f0f0f0fllu);
-  x = ((x >>  8) & 0x00ff00ff00ff00ffllu) + (x & 0x00ff00ff00ff00ffllu);
-  x = ((x >> 16) & 0x0000ffff0000ffffllu) + (x & 0x0000ffff0000ffffllu);
-  x = ((x >> 32) & 0x00000000ffffffffllu) + (x & 0x00000000ffffffffllu);
+  x = ((x >>  1) & uint64NUMBER(0x5555555555555555)) + (x & uint64NUMBER(0x5555555555555555));
+  x = ((x >>  2) & uint64NUMBER(0x3333333333333333)) + (x & uint64NUMBER(0x3333333333333333));
+  x = ((x >>  4) & uint64NUMBER(0x0f0f0f0f0f0f0f0f)) + (x & uint64NUMBER(0x0f0f0f0f0f0f0f0f));
+  x = ((x >>  8) & uint64NUMBER(0x00ff00ff00ff00ff)) + (x & uint64NUMBER(0x00ff00ff00ff00ff));
+  x = ((x >> 16) & uint64NUMBER(0x0000ffff0000ffff)) + (x & uint64NUMBER(0x0000ffff0000ffff));
+  x = ((x >> 32) & uint64NUMBER(0x00000000ffffffff)) + (x & uint64NUMBER(0x00000000ffffffff));
   return(x);
 }
 
@@ -422,62 +388,208 @@ private:
 
 ////////////////////////////////////////
 //
-//  wordArray - An array that efficiently stores non-machine-word size
-//  integer words by packing the bits into machine-size words.  The array is
-//  variable length but not sparse - accessing element 1,000,000 will
-//  allocate elements 0 through 999,999.
+//  wordArray
 //
-//  The size, in bits, of each element is set at construction time.  All
-//  elements must be the same size.
+//  An array that efficiently stores non-machine-word size integer words by
+//  packing the bits into machine-size words.
 //
-//  The elements are stored in a set of fixed-size blocks.  The block size
-//  can also be set at construction time.  Note that this is specified IN
-//  BITS.  The default size is 64 KB per block.  Decrease this if you know
-//  you only need a few KB to store all values, or if you are storing several
-//  GB of data.  There is no real performance loss/gain; it just adjusts the
-//  number of blocks allocated.  There might be a slight degradation in
-//  performance of the memory management system if millions of blocks are
-//  allocated.
+//  The array is variable length, but not sparse.  Accessing element
+//  1,000,000 will allocate elements 0 through 999,999.
+//
+//  No array operator can be provided since we cannot return a reference to
+//  values across machine words, let alone a reference to a value inside a
+//  machine word.
+//
+//  The constructor needs to know the size of the words being stored,
+//  and how many bits to store per allocation.
 //
 class wordArray {
 public:
-  wordArray(uint32 valueWidth, uint64 segmentsSizeInBits, bool useLocks);
-  ~wordArray();
+  wordArray(uint32 wordWidth, uint32 segmentSize = 65536 * 8) {
+    _valueWidth       = wordWidth;
+    _segmentSize      = segmentSize;
+    _valuesPerSegment = (uint64)_segmentSize / (uint64)_valueWidth;
 
-  void     clear(void);                   //  Reset the array to zero, doesn't deallocate space.
+    _nextElement      = 0;
 
-  void     allocate(uint64 nElements);    //  Pre-allocate space for nElements.
+    _segmentsLen      = 0;
+    _segmentsMax      = 16;
+    _segments         = new uint64 * [_segmentsMax];
 
-  uint128  get(uint64 eIdx);              //  Get the value of element eIdx.
-  void     set(uint64 eIdx, uint128 v);   //  Set the value of element eIdx to v.
+    for (uint32 ss=0; ss<_segmentsMax; ss++)
+      _segments[ss] = NULL;
+  }
 
-public:
-  void     show(void);                    //  Dump the wordArray to the screen; debugging.
+  ~wordArray() {
+    for (uint32 i=0; i<_segmentsLen; i++)
+      delete [] _segments[i];
+
+    delete [] _segments;
+  };
+
+  void     clear(void) {
+    _nextElement = 0;
+    _segmentsLen = 0;
+  };
+
+  void     allocate(uint64 nElements) {
+    uint64 nSegs = nElements / _valuesPerSegment + 1;
+
+    //fprintf(stderr, "wordArray::allocate()-- allocating space for " F_U64 " elements, in " F_U64 " segments.\n",
+    //        nElements, nSegs);
+
+    assert(_segmentsLen == 0);
+
+    resizeArray(_segments, _segmentsLen, _segmentsMax, nSegs, resizeArray_copyData | resizeArray_clearNew);
+
+    for (uint32 seg=0; seg<nSegs; seg++) {
+      if (_segments[seg] == NULL)
+        _segments[seg] = new uint64 [_segmentSize / 64];
+
+      memset(_segments[seg], 0xff, sizeof(uint64) * _segmentSize / 64);
+    }
+
+    _segmentsLen = nSegs;
+  };
+
+  uint64   get(uint64 element) {
+    uint64 seg =                element / _valuesPerSegment;     //  Which segment are we in?
+    uint64 pos = _valueWidth * (element % _valuesPerSegment);    //  Bit position of the start of the value.
+
+    uint64 wrd = pos / 64;   //  The word we start in.
+    uint64 bit = pos % 64;   //  Starting at this bit.
+
+    uint64 val = 0;
+
+    assert(element < _nextElement);
+
+    //  If the value is all in one word, just shift that word to the right to
+    //  put the proper bits in the proper position.  We'll clean up the extra
+    //  bits in just a moment.
+
+    if (bit + _valueWidth <= 64) {
+      val   = _segments[seg][wrd] >> (64 - _valueWidth - bit);
+    }
+
+    //  Otherwise, the value spans two words.  First, shift the first word so
+    //  the end of it is at the start of the value.  Then shift the second
+    //  word to the start of it is at the end of the value.
+    //
+    //                                 ssssssssssssssssssssss <- second shift
+    //  [--word--][--first-word--][--second-word--][--word--]
+    //                      [--value--]
+    //                            fffff <- first shift
+    //
+    else {
+      uint32  fShift = _valueWidth - (64 - bit);
+      uint32  sShift = 64 - fShift;
+
+      val   = _segments[seg][wrd+0] << fShift;
+      val  |= _segments[seg][wrd+1] >> sShift;
+    }
+
+    //  Finally, mask off the stuff we don't care about.
+
+    val  &= uint64MASK(_valueWidth);
+
+    return(val);
+  };
+
+  void     set(uint64 element, uint64 value) {
+    uint64 seg =                element / _valuesPerSegment;     //  Which segment are we in?
+    uint64 pos = _valueWidth * (element % _valuesPerSegment);    //  Which word in the segment?
+
+    uint64 wrd = pos / 64;   //  The word we start in.
+    uint64 bit = pos % 64;   //  Starting at this bit.
+
+    if (element >= _nextElement)
+      _nextElement = element+1;
+
+    if (seg >= _segmentsMax)
+      resizeArray(_segments, _segmentsLen, _segmentsMax, seg + 16, resizeArray_copyData | resizeArray_clearNew);
+
+    while (_segmentsLen <= seg) {
+      _segments[_segmentsLen] = new uint64 [_segmentSize / 64];
+
+      memset(_segments[_segmentsLen], 0xff, sizeof(uint64) * _segmentSize / 64);
+
+      _segmentsLen++;
+    }
+
+    //  Mask the value, just in case.
+
+    value &= uint64MASK(_valueWidth);
+
+    //  Set the value in the segment.
+
+    //          [--------------------]
+    //                 [value]
+    //           lSave           rSave
+    //
+    if (bit + _valueWidth <= 64) {
+      uint32   lSave = bit;
+      uint32   rSave = 64 - _valueWidth - bit;
+
+      _segments[seg][wrd] = (saveLeftBits(_segments[seg][wrd], lSave) |
+                             (value << rSave)                         |
+                             saveRightBits(_segments[seg][wrd], rSave));
+    }
+
+    //            --lSave--               --rSave--
+    //  [--word--][--first-word--][--second-word--][--word--]
+    //                     [----value---=]
+    //                      lSize  rSize
+    //
+    else {
+      uint32   lSave =      bit,   rSave = 128 - _valueWidth - bit;
+      uint32   lSize = 64 - bit,   rSize = _valueWidth - (64 - bit);
+
+      _segments[seg][wrd+0] = saveLeftBits(_segments[seg][wrd+0], lSave) | (value >> rSize);
+      _segments[seg][wrd+1] = (value << rSave) | saveRightBits(_segments[seg][wrd+1], rSave);
+    }
+  };
+
+  void     show(void) {
+    fprintf(stderr, "wordArray:   valueWidth  %2" F_U32P "\n", _valueWidth);
+    fprintf(stderr, "wordArray:   segmentSize %8" F_U64P "   valuesPerSegment %8" F_U64P "\n", _segmentSize, _valuesPerSegment);
+    fprintf(stderr, "\n");
+
+    uint32  bit  = 64;
+    uint32  word = 0;
+    char    bits[65];
+
+    for (uint32 ss=0; ss<_segmentsLen; ss++) {
+      fprintf(stderr, "Segment %u:\n", ss);
+
+      for(uint32 wrd=0, bit=0; bit<_valuesPerSegment * _valueWidth; bit++) {
+        if ((bit % 64) == 0) {
+          displayWord(_segments[ss][wrd++], bits);
+        }
+
+        if ((bit % _valueWidth) == 0)
+          fprintf(stderr, "word %2u: ", wrd);
+
+        fprintf(stderr, "%c", bits[bit % 64]);
+
+        if ((bit % _valueWidth) == _valueWidth - 1)
+          fprintf(stderr, "\n");
+      }
+    }
+
+    fprintf(stderr, "\n");
+    fprintf(stderr, "\n");
+  }
 
 private:
-  void     setLock(uint64 seg, uint64 lockW1, uint64 lockW2);
-  void     relLock(uint64 seg, uint64 lockW1, uint64 lockW2);
-  void     setNval(uint32 eIdx);
+  uint32   _valueWidth;
+  uint64   _segmentSize;
+  uint64   _valuesPerSegment;
 
-private:
-  uint64              _valueWidth       = 0;         //  Width of the values stored.
-  uint64              _valueMask        = 0;         //  Mask the low _valueWidth bits
-  uint64              _segmentSize      = 0;         //  Size, in bits, of each block of data.
+  uint64   _nextElement;  //  the first invalid element
 
-  uint64              _valuesPerSegment = 0;         //  Number of values in each block.
-
-  uint64              _wordsPerSegment  = 0;         //  Number of 128-bit words in each segment
-  uint64              _wordsPerLock     = 0;         //  How many words are covered by each lock.
-  uint64              _locksPerSegment  = 0;         //  Number of locks per segment
-
-  uint64              _numValues        = 0;         //  Number of values stored in the array.
-  std::atomic_flag    _numValuesLock;                //  Lock on the above.
-
-  uint64              _segmentsLen      = 0;         //  Number of blocks in use.
-  uint64              _segmentsMax      = 0;         //  Number of block pointers allocated.
-  uint128           **_segments         = nullptr;   //  List of blocks allocated.
-
-  std::atomic_flag  **_segLocks         = nullptr;   //  Locks on pieces of the segments.
+  uint64   _segmentsLen;
+  uint64   _segmentsMax;
+  uint64 **_segments;
 };
 
 
@@ -752,14 +864,6 @@ private:
   uint64   _fibData[93];       //  A pile of Fibonacci numbers.
 };
 
-
-//  Implementations.
-
-#define BITS_IMPLEMENTATIONS
-
-#include "bits-wordArray.H"
-
-#undef BITS_IMPLEMENTATIONS
 
 
 #endif  //  LIBBITS_H

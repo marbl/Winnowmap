@@ -50,216 +50,128 @@ void   decode3bitSequence(uint8 *chunk, uint32 chunkLen, char *seq, uint32 seqLe
 void   decode8bitSequence(uint8 *chunk, uint32 chunkLen, char *seq, uint32 seqLen);
 
 
-//  Encode/decode an ACGT base to 0132.  Relies on the ASCII encoding:
-//
-//    A      a     01c0 000 1 == 0 -> 0
-//    C      c     01c0 001 1 == 1 -> 1
-//    T      t     01c1 010 0 == 2 -> 2
-//    G      g     01c0 011 1 == 3 -> 3
-//    N      n     01c0 111 0 == 7 -> 4
-//                      ^^^
-//  Decoding will always return uppercase letters (c=0).
-//
-//  The inline arrays, in gcc anyway, compile to a single 64-bit constant
-//  and is equivalent to the C code:
-//
-//    0x0706050403020100llu >> (((base >> 1) & 0x07) << 3) & 0x0f
-//
-//  with the additional optimization of removing the redundant shifts.
-
-inline
-uint8
-encode2bitBase(char  base) {
-  return((uint8 [8]){0, 1, 2, 3, 4, 4, 4, 4}[base >> 1 & 0x07]);
-}
-
-inline
-char
-decode2bitBase(uint8 base) {
-  return("ACTGNNNN"[base & 0x07]);
-}
 
 
+class dnaSeqIndexEntry;   //  Internal use only, sorry.
 
-//  A sequence loaded from disk.  It should be treated as a read-only object.
-//
-//  ident() returns the first word of the sequence header line, while flags()
-//  returns the rest of the line, or an empty line if there is no more line.
-//
-//  It isn't possible to modify ident() and flags().  They're pointers
-//  into the same memory, and that isn't exposed.
-//
-//  bases() and quals() could support modifications, as long as the length of
-//  the string doesn't change.  Only canu needed to do that and it was worked
-//  around.
-//
-//  If quality values are not available (e.g., FASTA) then all values are set
-//  to zero.
-//
-//  The copy functions will copy bases (and qualities) from bgn to end, but
-//  not including the base at end -- that is, normal C-style semantics.  The
-//  output will be NUL-terminated, unless explicitly told not to.  Returns
-//  false if bgn or end are out of range or inconsistent.
-//
 class dnaSeq {
 public:
-  dnaSeq();
-  ~dnaSeq();
+  dnaSeq() {
+    _nameMax = 0;
+    _name    = NULL;
+    _seqMax  = 0;
+    _seq     = NULL;
+    _qlt     = NULL;
+    _seqLen  = 0;
+  };
 
-  char  const      *ident(void)        { return(_ident);  };
-  char  const      *flags(void)        { return(_flags);  };
-  char  const      *bases(void)        { return(_seq);    };
-  uint8 const      *quals(void)        { return(_qlt);    };
+  ~dnaSeq() {
+    delete [] _name;
+    delete [] _seq;
+    delete [] _qlt;
+  };
+
+
+  char             *name(void)         { return(_name);   };
+  char             *bases(void)        { return(_seq);    };
+  uint8            *quals(void)        { return(_qlt);    };
 
   uint64            length(void)       { return(_seqLen); };
 
-  void              releaseAll(void);      //  Release all memory.
-  void              releaseBases(void);    //  Release seq memory; keep the name.
-
-  bool              copy(char  *bout,
-                         uint32 bgn, uint32 end, bool terminate = true);
-
-  bool              copy(char  *bout,
-                         uint8 *qout,
-                         uint32 bgn, uint32 end, bool terminate = true);
-
-  bool              wasError(void)     { return((_error & 0x01) == 0x01); };
-  bool              wasReSync(void)    { return((_error & 0x02) == 0x02); };
-
 private:
-  void              findNameAndFlags(void);
-
-private:
-  char             *_name    = nullptr;
-  uint32            _nameMax = 0;
-
-  char             *_ident   = nullptr;
-  char             *_flags   = nullptr;
-
-  char             *_seq     = nullptr;
-  uint8            *_qlt     = nullptr;
-  uint64            _seqMax  = 0;         //  Space allocated.
-  uint64            _seqLen  = 0;         //  Actual length.
-
-  uint32            _error   = 0;
+  uint32            _nameMax;
+  char             *_name;
+  uint64            _seqMax;
+  char             *_seq;
+  uint8            *_qlt;
+  uint64            _seqLen;
 
   friend class dnaSeqFile;
 };
 
 
 
-//  An interface to FASTA and FASTQ files.
-//
-//  Upon object creation, you can request that an index of the file be
-//  generated.  Without an index, numberOfSequences(), findSequence() and
-//  sequenceLength() do not work well or at all.
-//
-//  generateIndex() will force an index to be generated.
-//  removeIndex will remove any index.
-//
-//  reopen() will reset the file to the start and.  If the 'indexed' flag is
-//  true, or an index already exists, an index is (re)created.  Note that
-//  setting 'indexed=false' will NOT remove an existing index.
-//
-//  findSequence() will return true if the specified sequence is found in the
-//  file and leave the file positioned such that the next loadSequence() will
-//  load that sequence.
-//   - If an index exists, the index will be searched and the sequence will
-//     be returned regardless of where it is in the file.
-//   - If no index exists, the file will be searched forward until the
-//     sequence is found or the file ends.  It is not possible to move
-//     'backward' in the file in this case.
-//
-//  sequenceLength() will return the length of sequence index i.  If no index
-//  exists, or i is not a valid sequence index, UINT64_MAX is returned.
-//
-//  isFASTA() and isFASTQ() return true if the last sequence loaded came from
-//  a FASTA or FASTQ source, respectively.  If no sequence has been loaded
-//  yet, both functions will return false.
-//
-//  loadSequence() will read the next sequence from the file.  Returns false
-//  if the end of file is encountered, true otherwise.  In particular, a
-//  sequence of length zero will return true.
-//
-//  loadBases() will return a chunk of sequence from the file, up to
-//  'maxLength' bases or the end of the current sequence.
-//   - Returns false only if EOF is encountered.
-//   - seqLength will have the length of the sequence returned.  This can be zero.
-//   - endOfSequence will be true if the end of the sequence was encountered.
-//   - The returned sequence is NOT NUL terminated.
-//
 
 class dnaSeqFile {
 public:
-  dnaSeqFile(char const *filename, bool indexed=false);
+  dnaSeqFile(const char *filename, bool indexed=false);
   ~dnaSeqFile();
 
-  void        reopen(bool indexed=false);
-  void        generateIndex(void);
-  void        removeIndex(void);
+  compressedFileReader  *_file;
+  readBuffer            *_buffer;
 
-public:
-  char const *filename(void)            { return(_filename); };
-  uint64      numberOfSequences(void)   { return(_indexLen); };
-
-  bool        findSequence(uint64 i);
-  uint64      sequenceLength(uint64 i);
-
-public:
-  //  True if the last sequence loaded was from a FASTA or FASTQ file.
-  bool   isFASTA(void)      { return(_isFASTA); };
-  bool   isFASTQ(void)      { return(_isFASTQ); };
-
-  //  Return the sequence index of the last loaded sequence.
-  uint32 seqIdx(void)       { return(_seqIdx-1); };
-
-  //  True if the input file is compressed (gzip, xz, etc).
-  bool   isCompressed(void) { return(_file->isCompressed()); };
-
-public:
-  bool   loadSequence(char   *&name, uint32 &nameMax,
-                      char   *&seq,
-                      uint8  *&qlt,  uint64 &seqMax, uint64 &seqLen, uint32 &errorCode);
-  bool   loadSequence(dnaSeq &seq);
-
-public:
-  bool   loadBases(char    *seq,
-                   uint64   maxLength,
-                   uint64  &seqLength,
-                   bool    &endOfSequence);
+  dnaSeqIndexEntry      *_index;
+  uint64                 _indexLen;
+  uint64                 _indexMax;
 
 private:
   bool     loadIndex(void);
   void     saveIndex(void);
 
-  bool
-  loadFASTA(char  *&name, uint32 &nameMax,
-            char  *&seq,
-            uint8 *&qlt,  uint64 &seqMax, uint64 &seqLen, uint64 &qltLen);
+public:
+  void     generateIndex(void);
 
-  bool
-  loadFASTQ(char  *&name, uint32 &nameMax,
-            char  *&seq,
-            uint8 *&qlt,  uint64 &seqMax, uint64 &seqLen, uint64 &qltLen);
+  //  If indexed, searches the index for the proper sequence.
+  //
+  //  If not indexed, searches forward in the file for the sequence.  If not found,
+  //  the file will be at the end.
+  //
+  //  In both cases, the file is left positioned at the start of the sequence header.
+  //
+  //  Returns true if found, false if not.
+  //
+  bool     findSequence(uint64 i);
+  bool     findSequence(const char *name);
 
-private:
-  char                  *_filename = nullptr;
-
-  bool                   _isFASTA  = false;
-  bool                   _isFASTQ  = false;
-  uint64                 _seqIdx   = 0;
-
-  compressedFileReader  *_file     = nullptr;
-  readBuffer            *_buffer   = nullptr;
-
-  struct dnaSeqIndexEntry {     //  Offset of the first byte in the record:
-    uint64   _fileOffset;       //  '>' for FASTA, '@' for fastq.
-    uint64   _sequenceLength;   //
+  //  Returns the number of sequences in the file.
+  uint64   numberOfSequences(void) {
+    return(_indexLen);
   };
 
-  dnaSeqIndexEntry      *_index    = nullptr;
-  uint64                 _indexLen = 0;
-  uint64                 _indexMax = 0;
+  //  Returns the length of sequence i.  If no such sequence, returns UINT64_MAX.
+  uint64   sequenceLength(uint64 i);
+
+  char    *filename(void) {
+    return(_file->filename());
+  }
+
+private:
+  uint64
+  loadFASTA(char   *&name,     uint32  &nameMax,
+            char   *&seq,
+            uint8  *&qlt,      uint64  &seqMax);
+
+  uint64
+  loadFASTQ(char   *&name,     uint32  &nameMax,
+            char   *&seq,
+            uint8  *&qlt,      uint64  &seqMax);
+
+
+public:
+  //  Return the next sequence in the file.
+  //  Returns false if EOF, true otherwise, even if the sequence is length zero.
+  //
+  bool   loadSequence(char   *&name,     uint32  &nameMax,
+                      char   *&seq,
+                      uint8  *&qlt,      uint64  &seqMax,
+                      uint64  &seqLen);
+
+  bool   loadSequence(dnaSeq &seq) {
+    return(loadSequence(seq._name,    seq._nameMax,
+                        seq._seq,
+                        seq._qlt,     seq._seqMax,
+                        seq._seqLen));
+  };
+
+  //  Returns a chunk of sequence from the file, up to 'maxLength' bases or
+  //  the end of the current sequence.  This is NOT NUL terminated!
+  //
+  //  Returns false if EOF is hit and no bases were loaded.
+  //
+  bool   loadBases(char    *seq,
+                   uint64   maxLength,
+                   uint64  &seqLength,
+                   bool    &endOfSequence);
 };
 
 

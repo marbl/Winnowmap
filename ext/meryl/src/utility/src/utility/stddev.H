@@ -26,6 +26,9 @@
 #include <vector>
 #include <algorithm>
 
+using namespace std;
+
+
 
 //  Online mean and std.dev calculation.
 //  B. P. Welford, Technometrics, Vol 4, No 3, Aug 1962 pp 419-420.
@@ -60,18 +63,10 @@ public:
     _nn = n0;
   };
 
-  void     remove(TT val) {
+  void     remove(double val) {
     uint32 n0 = _nn - 1;
     double m0 = (n0 == 0) ? (0) : ((_nn * _mn - val) / n0);
     double s0 = _sn - (val - m0) * (val - _mn);
-
-    if (n0 == 0)   m0 = 0.0;   //  Reset mean and variance to zero when we can.
-    if (n0 <= 1)   s0 = 0.0;   //  See tests/stddevTest.C testStability() for details.
-
-    if (s0 < 0.0)              //  Assume negative values are due to stability problems,
-      s0 = 0.0;                //  and not mismatched insert() and delete() values.
-    if (-1e-10 <= m0 && m0 <= 1e-10)
-      m0 = 0.0;
 
     if (_nn == 0)
       fprintf(stderr, "ERROR: stdDev has no data; can't remove() old value.\n"), exit(1);
@@ -135,7 +130,7 @@ computeStdDev(TT *dist, uint64 distLen, double &mean, double &stddev, bool isSor
   //  Sort the values.  Lets us approximate the stddev for filtering out outliers.
 
   if (isSorted == false)
-    std::sort(dist, dist + distLen);
+    sort(dist, dist + distLen);
 
   //  Approximate the stddev to filter out outliers.  This is done by assuming we're normally
   //  distributed, finding the values that would represent 1 standard deviation (about 68.27% of the
@@ -182,7 +177,7 @@ computeStdDev(TT *dist, uint64 distLen, double &mean, double &stddev, bool isSor
 
 template<typename TT>
 void
-computeStdDev(std::vector<TT> dist, double &mean, double &stddev, bool isSorted=false) {
+computeStdDev(vector<TT> dist, double &mean, double &stddev, bool isSorted=false) {
   computeStdDev(dist.data(), dist.size(), mean, stddev, isSorted);
 }
 
@@ -200,7 +195,7 @@ computeMode(TT *dist, uint64 distLen, TT &mode, bool isSorted=false) {
     return;
 
   if (isSorted == false)
-    std::sort(dist, dist + distLen);
+    sort(dist, dist + distLen);
 
   uint32  modeCnt = 0;
   TT      modeVal = 0;
@@ -232,7 +227,7 @@ computeMode(TT *dist, uint64 distLen, TT &mode, bool isSorted=false) {
 
 template<typename TT>
 void
-computeMode(std::vector<TT> dist, TT &mode, bool isSorted=false) {
+computeMode(vector<TT> dist, TT &mode, bool isSorted=false) {
   computeMode(dist.data(), dist.size(), mode, isSorted);
 }
 
@@ -247,7 +242,7 @@ computeMedian(TT *dist, uint64 distLen, TT &median, bool isSorted=false) {
     return;
 
   if (isSorted == false)
-    std::sort(dist, dist + distLen);
+    sort(dist, dist + distLen);
 
   if (distLen % 2 == 0)
      median = (dist[distLen / 2 - 1] + dist[distLen / 2]) / 2;
@@ -257,7 +252,7 @@ computeMedian(TT *dist, uint64 distLen, TT &median, bool isSorted=false) {
 
 template<typename TT>
 void
-computeMedian(std::vector<TT> dist, TT &median, bool isSorted=false) {
+computeMedian(vector<TT> dist, TT &median, bool isSorted=false) {
   computeMedian(dist.data(), dist.size(), median, isSorted);
 }
 
@@ -274,11 +269,11 @@ computeMedianAbsoluteDeviation(TT *dist, uint64 distLen, TT &median, TT &mad, bo
     return;
 
   if (isSorted == false)
-    std::sort(dist, dist + distLen);
+    sort(dist, dist + distLen);
 
   computeMedian(dist, distLen, median, true);
 
-  std::vector<TT>  m;
+  vector<TT>  m;
 
   for (uint64 ii=0; ii<distLen; ii++) {
     if (dist[ii] < median)
@@ -287,14 +282,14 @@ computeMedianAbsoluteDeviation(TT *dist, uint64 distLen, TT &median, TT &mad, bo
       m.push_back(dist[ii] - median);
   }
 
-  std::sort(m.begin(), m.end());
+  sort(m.begin(), m.end());
 
   mad = m[ m.size()/2 ];
 };
 
 template<typename TT>
 void
-computeMedianAbsoluteDeviation(std::vector<TT> dist, TT &median, TT &mad, bool isSorted=false) {
+computeMedianAbsoluteDeviation(vector<TT> dist, TT &median, TT &mad, bool isSorted=false) {
   computeMedianAbsoluteDeviation(dist.data(), dist.size(), median, mad, isSorted);
 }
 
@@ -334,7 +329,7 @@ public:
 
   void               add(uint64 data, uint32 count=1) {
     while (_histogramAlloc <= data)
-      resizeArray(_histogram, _histogramMax+1, _histogramAlloc, _histogramAlloc * 2, _raAct::copyData | _raAct::clearNew);
+      resizeArray(_histogram, _histogramMax+1, _histogramAlloc, _histogramAlloc * 2, resizeArray_copyData | resizeArray_clearNew);
 
     if (_histogramMax < data)
       _histogramMax = data;
@@ -351,6 +346,18 @@ public:
 
   uint64             median(void)           { finalizeData(); return(_median);   };
   uint64             mad(void)              { finalizeData(); return(_mad);      };
+
+#if 0
+  vector<uint64>    &histogram(void) {    //  Returns pointer to private histogram data
+    finalizeData();
+    return(_histogram);
+  };
+
+  vector<uint64>    &Nstatistics(void) {  //  Returns pointer to private N data
+    finalizeData();
+    return(_Nstatistics);
+  };
+#endif
 
   void               clearStatistics(void) {
     _numObjs  = 0;

@@ -99,8 +99,10 @@ public:
 
     _part       = 0;
 
-    _length     = 512 * 1024 * 1024;   //  Forces a rotate() on the first write.
+    _length     = 0;
     _lengthMax  = 512 * 1024 * 1024;
+
+    _bufferSize = bufferSize;   //  Forces a rotate() on the first write.
 
     _output     = NULL;
   };
@@ -145,10 +147,6 @@ public:
     delete _output;
 
     _part++;
-
-    if (_prefix[0] == 0)
-      fprintf(stderr, "_prefix not set for thread %d\n", _threadID);
-    assert(_prefix[0] != 0);
 
     if (_threadID < UINT32_MAX) {
       snprintf(_filePrefix, FILENAME_MAX, "%s.%03u.%s",         _prefix, _order, _name);
@@ -216,6 +214,8 @@ private:
 
   uint32        _part;
 
+  uint32        _bufferSize;
+
   writeBuffer  *_output;
   uint64        _length;
   uint64        _lengthMax;
@@ -230,18 +230,10 @@ private:
 
 logFile::logFile(char const *prefix, uint64 maxSize) {
 
-  _threadMax = 1024;
-  _threadNum = omp_get_max_threads();
+  _mainI   = new logFileInstance(prefix, UINT32_MAX, maxSize);
+  _threadI = new logFileInstance * [omp_get_max_threads()];
 
-  _maxSize   = maxSize;
-
-  _mainI     = new logFileInstance(prefix, UINT32_MAX, maxSize);
-  _threadI   = new logFileInstance * [_threadMax];
-
-  for (uint32 ii=0; ii<_threadMax; ii++)
-    _threadI[ii] = nullptr;
-
-  for (uint32 ii=0; ii<_threadNum; ii++)
+  for (uint32 ii=0; ii<omp_get_max_threads(); ii++)
     _threadI[ii] = new logFileInstance(prefix, ii, maxSize);
 
   _levelsLen = 0;
@@ -254,9 +246,11 @@ logFile::logFile(char const *prefix, uint64 maxSize) {
 
 logFile::~logFile() {
 
+  fprintf(stderr, "~logFile\n");
+
   delete    _mainI;
 
-  for (uint32 ii=0; ii<_threadMax; ii++)
+  for (uint32 ii=0; ii<omp_get_max_threads(); ii++)
     delete _threadI[ii];
   delete [] _threadI;
 
@@ -271,10 +265,8 @@ logFile::setPrefix(char const *prefix) {
 
   _mainI->setPrefix(prefix);
 
-  for (uint32 ii=0; ii<_threadMax; ii++) {
-    if (_threadI[ii])
-      _threadI[ii]->setPrefix(prefix);
-  }
+  for (uint32 ii=0; ii<omp_get_max_threads(); ii++)
+    _threadI[ii]->setPrefix(prefix);
 }
 
 
@@ -296,9 +288,8 @@ logFile::setName(char const *name) {
 
   _mainI->setName(name);
 
-  for (uint32 ii=0; ii<_threadMax; ii++)
-    if (_threadI[ii])
-      _threadI[ii]->setName(name);
+  for (uint32 ii=0; ii<omp_get_max_threads(); ii++)
+    _threadI[ii]->setName(name);
 }
 
 
@@ -307,9 +298,8 @@ logFile::setMaxSize(uint64 size) {
 
   _mainI->setMaxSize(size);
 
-  for (uint32 ii=0; ii<_threadMax; ii++)
-    if (_threadI[ii])
-      _threadI[ii]->setMaxSize(size);
+  for (uint32 ii=0; ii<omp_get_max_threads(); ii++)
+    _threadI[ii]->setMaxSize(size);
 }
 
 
@@ -373,7 +363,7 @@ logFile::enable(char const *optionString, char const *levelName) {
     optionString++;
   }
 
-  while ((*optionString != 0)) {
+  while ((*optionString != 0) && (*optionString == '-')) {
     verbosity++;
     optionString++;
   }
@@ -477,35 +467,12 @@ logFile::writeStatus(char const *fmt, va_list ap) {
 
 void
 logFile::writeLog(char const *fmt, va_list ap) {
-  int32   nt = omp_get_num_threads();   //  Number of threads currently active
-  int32   tn = omp_get_thread_num();    //  ID of this thread
+  int32             nt = omp_get_num_threads();
+  int32             tn = omp_get_thread_num();
 
-  //  If tn is more than we have space for we need to allocate a new
-  //  _threadI array.  But this is hard.  So just blow up.
+  logFileInstance  *lf = (nt == 1) ? (_mainI) : (_threadI[tn]);
 
-  if (tn >= _threadMax) {
-    fprintf(stderr, "TOO MANY THREADS!\n");
-    assert(0);
-  }
-
-  //  If we're only running a single thread, or we have already allocated an
-  //  output for this thread, we can immediately write the log.
-
-  if (nt == 1) {
-    _mainI->writeLog(fmt, ap);
-  }
-
-  else if (_threadI[tn]) {
-    _threadI[tn]->writeLog(fmt, ap);
-  }
-
-  //  Otherwise, we need to allocate a new thread output and set it up before
-  //  we can write.
-
-  else {
-    _threadI[tn] = new logFileInstance(getPrefix(), tn, _maxSize);
-    _threadI[tn]->writeLog(fmt, ap);
-  }
+  lf->writeLog(fmt, ap);
 }
 
 
@@ -619,8 +586,7 @@ void
 logFile::flush(void) {
   _mainI->flush();
 
-  for (uint32 ii=0; ii<_threadMax; ii++)
-    if (_threadI[ii])
-      _threadI[ii]->flush();
+  for (uint32 ii=0; ii<omp_get_max_threads(); ii++)
+    _threadI[ii]->flush();
 }
 

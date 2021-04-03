@@ -40,11 +40,6 @@ uint64   getPhysicalMemorySize(void);
 
 uint64   getPageSize(void);
 
-uint64   getMaxMemoryAllowed(void);
-
-uint32   getMaxThreadsAllowed(void);
-uint32   getNumThreadsActive(void);
-
 
 void  AS_UTL_catchCrash(int sig_num, siginfo_t *info, void *ctx);
 

@@ -24,7 +24,7 @@ merylBlockWriter::merylBlockWriter(merylFileWriter *writer) {
 
   _writer = writer;
 
-  strncpy(_outName, _writer->_outName, FILENAME_MAX+1);
+  strncpy(_outName, _writer->_outName, FILENAME_MAX);
 
   //  Encoding data
 
@@ -284,7 +284,7 @@ merylBlockWriter::mergeBatches(uint32 oi) {
 
     //  Setup the merge.
 
-    resizeArrayPair(suffixes, values, 0, nKmersMax, totnKmers);
+    resizeArrayPair(suffixes, values, 0, nKmersMax, totnKmers, resizeArray_doNothing);
 
     //  Merge!  We don't know the number of different kmers in the input, and are forced
     //  to loop infinitely.

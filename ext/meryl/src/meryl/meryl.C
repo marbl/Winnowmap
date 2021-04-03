@@ -30,23 +30,23 @@ main(int argc, char **argv) {
 
   argc = AS_configure(argc, argv);
 
-  std::vector<char *>  err;
+  vector<char *>  err;
   for (int32 arg=1; arg < argc; arg++) {
 
     //
     //  Scan for debug options and requests for help.
     //
 
-    if (strcmp(argv[arg], "dumpIndex") == 0) {         //  Report the index for the dataset.
-      arg++;                                           //  It's just the parameters used for encoding.
-      delete new merylFileReader(argv[arg++], true);   //  Expects a meryl db directory as a parameter.
-      exit(0);
+    if (strcmp(argv[arg], "dumpIndex") == 0) {               //  Report the index for the dataset.
+      arg++;                                                 //  It's just the parameters used for encoding.
+      delete new merylFileReader(argv[arg++], true);
+      continue;
     }
 
-    if (strcmp(argv[arg], "dumpFile") == 0) {          //  Dump the index for a single data file.
-      arg++;                                           //  Expects a meryl file prefix as a parameter.
-      dumpMerylDataFile(argv[arg++]);                  //  (e.g., db.meryl/0x000000)
-      exit(0);
+    if (strcmp(argv[arg], "dumpFile") == 0) {                //  Dump the index for a single data file.
+      arg++;
+      dumpMerylDataFile(argv[arg++]);
+      continue;
     }
 
     if ((strcmp(argv[arg], "-h")   == 0) ||
@@ -103,8 +103,6 @@ main(int argc, char **argv) {
     fprintf(stderr, "\n");
     fprintf(stderr, "  COMMANDS:\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "    statistics           display total, unique, distnict, present number of the kmers on the screen.  accepts exactly one input.\n");
-    fprintf(stderr, "    histogram            display kmer frequency on the screen as 'frequency<tab>count'.  accepts exactly one input.\n");
     fprintf(stderr, "    print                display kmers on the screen as 'kmer<tab>count'.  accepts exactly one input.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    count                Count the occurrences of canonical kmers in the input.  must have 'output' specified.\n");
@@ -124,7 +122,6 @@ main(int argc, char **argv) {
     fprintf(stderr, "    decrease X           subtract X from the count of each kmer.\n");
     fprintf(stderr, "    multiply X           multiply the count of each kmer by X.\n");
     fprintf(stderr, "    divide X             divide the count of each kmer by X.\n");
-    fprintf(stderr, "    divide-round X       divide the count of each kmer by X and round results. count < X will become 1.\n");
     fprintf(stderr, "    modulo X             set the count of each kmer to the remainder of the count divided by X.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    union                return kmers that occur in any input, set the count to the number of inputs with this kmer.\n");
@@ -136,8 +133,6 @@ main(int argc, char **argv) {
     fprintf(stderr, "    intersect-min        return kmers that occur in all inputs, set the count to the minimum count.\n");
     fprintf(stderr, "    intersect-max        return kmers that occur in all inputs, set the count to the maximum count.\n");
     fprintf(stderr, "    intersect-sum        return kmers that occur in all inputs, set the count to the sum of the counts.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "    subtract             return kmers that occur in the first input, subtracting counts from the other inputs\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    difference           return kmers that occur in the first input, but none of the other inputs\n");
     fprintf(stderr, "    symmetric-difference return kmers that occur in exactly one input\n");
@@ -241,7 +236,7 @@ main(int argc, char **argv) {
       continue;
 
     fprintf(stderr, "\n");
-    fprintf(stderr, "PROCESSING TREE #%u using %u thread%s.\n", rr+1, getMaxThreadsAllowed(), getMaxThreadsAllowed() == 1 ? "" : "s");
+    fprintf(stderr, "PROCESSING TREE #%u using %u thread%s.\n", rr+1, omp_get_max_threads(), omp_get_max_threads() == 1 ? "" : "s");
     B->printTree(root, 2);
 
 #pragma omp parallel for schedule(dynamic, 1)

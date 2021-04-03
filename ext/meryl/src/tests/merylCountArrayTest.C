@@ -24,7 +24,7 @@ mtRandom  *mt = NULL;
 
 
 void
-display(char const *l, kmdata s) {
+display(char *l, kmdata s) {
   uint64 a = (s >> 64);
   uint64 b =  s;
 

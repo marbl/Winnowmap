@@ -49,13 +49,13 @@ public:
   bool     alignDovetail(char const *seqA, uint32 lenA,
                          char const *seqB, uint32 lenB, bool verbose=false) {
     return(align(seqA, lenA, 0, lenA,
-                 seqB, lenB, 0, lenB, verbose, parasail_sg_qb_de_trace /*_striped_32*/));
+                 seqB, lenB, 0, lenB, verbose, parasail_sg_qb_de_trace_striped_32));
   };
 
   bool     alignDovetail(char const *seqA, uint32 lenA, int32 bgnA, int32 endA,
                          char const *seqB, uint32 lenB, int32 bgnB, int32 endB, bool verbose=false) {
     return(align(seqA, lenA, bgnA, endA,
-                 seqB, lenB, bgnB, endB, verbose, parasail_sg_qb_de_trace /*_striped_32*/));
+                 seqB, lenB, bgnB, endB, verbose, parasail_sg_qb_de_trace_striped_32));
   };
 
   //  Align with free gaps on either end of s2.

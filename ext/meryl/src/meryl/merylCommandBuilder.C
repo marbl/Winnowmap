@@ -57,8 +57,8 @@ isNumber(char *s, char dot='.') {
 
 //  Everything is initialized in the declaration.  Nothing really to do here.
 merylCommandBuilder::merylCommandBuilder() {
-  _allowedThreads = getMaxThreadsAllowed();   //  Absolute maximum limits on
-  _allowedMemory  = getMaxMemoryAllowed();    //  memory= and threads= values
+  _allowedThreads = omp_get_max_threads();     //  Absolute maximum limits on
+  _allowedMemory  = getPhysicalMemorySize();   //  memory= and threads= values.
 }
 
 
@@ -155,7 +155,7 @@ merylCommandBuilder::initialize(char *opt) {
 
   //  Save a few copies of the command line word.
 
-  strncpy(_inoutName, _optString, FILENAME_MAX + 1);
+  strncpy(_inoutName, _optString, FILENAME_MAX);
 
   snprintf(_indexName, FILENAME_MAX, "%s/merylIndex", _optString);
   snprintf(_sqInfName, FILENAME_MAX, "%s/info",       _optString);
@@ -214,22 +214,18 @@ merylCommandBuilder::processOptions(void) {
     return(true);
   }
 
-  //  If the string is entirely a number, treat it as either a threshold or a
-  //  constant, depending on the operation.  This is used for things like
-  //  "greater-than 45" and "divide 2".
-  //
-  //  If there is no operation, or it doesn't want a number, we fall trhough
-  //  and return 'false' when key/val is checked below.
-
-  bool  isNum = isNumber(_optString, 0);
-
-  if ((_opStack.top()->needsThreshold() == true) && (isNum == true)) {
-    _opStack.top()->setThreshold(strtouint64(_optString));
+  if (strncmp(_optString, "-E", 3) == 0) {
+#warning "-E not implemented."
+    //findMaxInputSizeForMemorySize(strtouint32(argv[arg+1]),
+    //                              (uint64)(1000000000 * strtodouble(argv[arg+2])));
     return(true);
   }
 
-  if ((_opStack.top()->needsConstant() == true) && (isNum == true)) {
-    _opStack.top()->setConstant(strtouint64(_optString));
+  //  If the string is entirely a number, treat it as a threshold.  This is
+  //  used for things like "greater-than 45".
+
+  if (isNumber(_optString, 0)) {
+    _opStack.top()->setThreshold(strtouint64(_optString));
     return(true);
   }
 
@@ -354,7 +350,6 @@ merylCommandBuilder::processOperation(void) {
   else if (0 == strcmp(_optString, "decrease"))               non = opDecrease;
   else if (0 == strcmp(_optString, "multiply"))               non = opMultiply;
   else if (0 == strcmp(_optString, "divide"))                 non = opDivide;
-  else if (0 == strcmp(_optString, "divide-round"))           non = opDivideRound;
   else if (0 == strcmp(_optString, "modulo"))                 non = opModulo;
 
   else if (0 == strcmp(_optString, "union"))                  non = opUnion;
@@ -367,8 +362,6 @@ merylCommandBuilder::processOperation(void) {
   else if (0 == strcmp(_optString, "intersect-max"))          non = opIntersectMax;
   else if (0 == strcmp(_optString, "intersect-sum"))          non = opIntersectSum;
 
-  else if (0 == strcmp(_optString, "subtract"))               non = opSubtract;
-  
   else if (0 == strcmp(_optString, "difference"))             non = opDifference;
   else if (0 == strcmp(_optString, "symmetric-difference"))   non = opSymmetricDifference;
 
@@ -507,7 +500,7 @@ merylCommandBuilder::isMerylInput(void) {
 }
 
 bool
-merylCommandBuilder::isCanuInput(std::vector<char *> &err) {
+merylCommandBuilder::isCanuInput(vector<char *> &err) {
 
   if ((fileExists(_sqInfName) == false) ||
       (fileExists(_sqRdsName) == false))
@@ -622,8 +615,6 @@ merylCommandBuilder::printTree(merylOperation *op, uint32 indent) {
 void
 merylCommandBuilder::spawnThreads(void) {
   uint32  indent = 0;
-
-  omp_set_num_threads(_allowedThreads);
 
   for (uint32 tt=0; tt<64; tt++) {
 

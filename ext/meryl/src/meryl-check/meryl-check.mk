@@ -8,13 +8,13 @@ ifeq "$(strip ${TARGET_DIR})" ""
   TARGET_DIR   := ../$(OSTYPE)-$(MACHINETYPE)
 endif
 
-TARGET   := filesTest
-SOURCES  := filesTest.C
+TARGET   := meryl-check
+SOURCES  := meryl-check.C \
 
-SRC_INCDIRS := .. ../utility
+SRC_INCDIRS  := . ../utility/src/utility
 
 TGT_LDFLAGS := -L${TARGET_DIR}/lib
-TGT_LDLIBS  := -lcanu
-TGT_PREREQS := libcanu.a
+TGT_LDLIBS  := -lmeryl
+TGT_PREREQS := libmeryl.a
 
 SUBMAKEFILES :=

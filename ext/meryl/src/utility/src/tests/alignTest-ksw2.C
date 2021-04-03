@@ -49,8 +49,8 @@ int
 main(int argc, char **argv) {
   dnaSeqFile  *fileA, *fileB;
   dnaSeq       dseqA,  dseqB;
-  char const  *seqA = nullptr;
-  char const  *seqB = nullptr;
+  char        *seqA = nullptr;
+  char        *seqB = nullptr;
 
   //fprintf(stderr, "A -> %2u -> %c\n", encode2bitBase('A'), decode2bitBase(0));
   assert(encode2bitBase('A') == 0);

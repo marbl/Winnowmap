@@ -1,5 +1,29 @@
-MODULE       :=    meryl
+
+#  If 'make' isn't run from the root directory, we need to set these to
+#  point to the upper level build directory.
+
+ifeq "$(strip ${DESTDIR})" ""
+  DESTDIR      :=
+endif
+
+ifeq "$(strip ${PREFIX})" ""
+  ifeq "$(strip ${DESTDIR})" ""
+    PREFIX     := $(realpath ..)
+  else
+    PREFIX     := /meryl
+  endif
+endif
+
+ifeq "$(strip ${BUILD_DIR})" ""
+  BUILD_DIR    := $(DESTDIR)$(PREFIX)/$(OSTYPE)-$(MACHINETYPE)/obj
+endif
+
+ifeq "$(strip ${TARGET_DIR})" ""
+  TARGET_DIR   := $(DESTDIR)$(PREFIX)/$(OSTYPE)-$(MACHINETYPE)
+endif
+
 TARGET       := libmeryl.a
+
 SOURCES      := utility/src/utility/edlib.C \
                 \
                 utility/src/utility/files.C \
@@ -28,11 +52,11 @@ SOURCES      := utility/src/utility/edlib.C \
                 utility/src/utility/kmers.C \
                 \
                 utility/src/utility/bits.C \
-                utility/src/utility/bits-wordArray.C \
                 \
                 utility/src/utility/hexDump.C \
                 utility/src/utility/md5.C \
                 utility/src/utility/mt19937ar.C \
+                utility/src/utility/objectStore.C \
                 utility/src/utility/speedCounter.C \
                 utility/src/utility/sweatShop.C \
                 \
@@ -59,12 +83,11 @@ SRC_INCDIRS  := . \
                 utility
 
 SUBMAKEFILES := meryl/meryl.mk \
-                meryl-analyze/meryl-analyze.mk \
                 meryl-simple/meryl-simple.mk \
                 meryl-import/meryl-import.mk \
-                meryl-lookup/meryl-lookup.mk
+                meryl-lookup/meryl-lookup.mk \
+                meryl-check/meryl-check.mk
 
 ifeq ($(BUILDTESTS), 1)
-SUBMAKEFILES += tests/merylCountArrayTest.mk \
-                tests/merylExactLookupTest.mk
+SUBMAKEFILES += tests/merylCountArrayTest.mk
 endif

@@ -37,13 +37,13 @@ main(int argc, char **argv) {
   bool    useC         = true;
   bool    useF         = false;
 
-  uint32  threads      = getMaxThreadsAllowed();
-  //uint64  memory     = 8;
+  uint32  threads      = 1;
+  uint64  memory       = 8;
 
   argc = AS_configure(argc, argv);
 
-  std::vector<char const *>  err;
-  int                        arg = 1;
+  vector<char *>  err;
+  int             arg = 1;
   while (arg < argc) {
     if        (strcmp(argv[arg], "-kmers") == 0) {
       inputName = argv[++arg];
@@ -72,7 +72,7 @@ main(int argc, char **argv) {
       threads = strtouint32(argv[++arg]);
 
     } else if (strcmp(argv[arg], "-memory") == 0) {   //  Not implemented.  If implemented, merylCountArray::initializeValues()
-      //memory = strtouint64(argv[++arg]);            //  needs to return a memory size, etc, etc.
+      memory = strtouint64(argv[++arg]);              //  needs to return a memory size, etc, etc.
 
     } else {
       char *s = new char [1024];
@@ -149,7 +149,7 @@ main(int argc, char **argv) {
   uint32  nPrefix   = 1 << wPrefix;
 
   uint32  wData     = 2 * kmerTiny::merSize() - wPrefix;
-  uint64  wDataMask = buildLowBitMask<uint64>(wData);
+  uint64  wDataMask = uint64MASK(wData);
 
   //  Open the input kmer file, allocate space for reading kmer lines.
 
@@ -212,8 +212,8 @@ main(int argc, char **argv) {
 
     //  And use it.
 
-    kmdata  pp = (useF == true) ? ((kmdata)kmerF >> wData)     : ((kmdata)kmerR >> wData);
-    kmdata  mm = (useF == true) ? ((kmdata)kmerF  & wDataMask) : ((kmdata)kmerR  & wDataMask);
+    uint64  pp = (useF == true) ? ((uint64)kmerF >> wData)     : ((uint64)kmerR >> wData);
+    uint64  mm = (useF == true) ? ((uint64)kmerF  & wDataMask) : ((uint64)kmerR  & wDataMask);
 
     assert(pp < nPrefix);
 

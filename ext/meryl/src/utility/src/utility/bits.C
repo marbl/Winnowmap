@@ -21,7 +21,6 @@
 #include "files.H"
 
 
-
 stuffedBits::stuffedBits(uint64 nBits) {
 
   _dataBlockLenMaxB =             nBits;
@@ -257,7 +256,7 @@ stuffedBits::loadFromBuffer(readBuffer *B) {
     _dataBlockBgn  = new uint64 [inLen];
     _dataBlockLen  = new uint64 [inLen];
 
-    resizeArray(_dataBlocks, _dataBlocksLen, _dataBlocksMax, inLen, _raAct::copyData | _raAct::clearNew);
+    resizeArray(_dataBlocks, _dataBlocksLen, _dataBlocksMax, inLen, resizeArray_copyData | resizeArray_clearNew);
   }
 
   //  Update the parameters.
@@ -359,7 +358,7 @@ stuffedBits::loadFromFile(FILE *F) {
     _dataBlockBgn  = new uint64 [inLen];
     _dataBlockLen  = new uint64 [inLen];
 
-    resizeArray(_dataBlocks, _dataBlocksLen, _dataBlocksMax, inLen, _raAct::copyData | _raAct::clearNew);
+    resizeArray(_dataBlocks, _dataBlocksLen, _dataBlocksMax, inLen, resizeArray_copyData | resizeArray_clearNew);
   }
 
   //  Update the parameters.
