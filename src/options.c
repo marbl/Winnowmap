@@ -51,7 +51,7 @@ void mm_mapopt_init(mm_mapopt_t *opt)
 
 	//prefix settings specific for sv-aware method
 	opt->maxPrefixLength = 16000;
-	opt->minPrefixLength = opt->suffixSampleOffset = 1000; //reducing these may increase sensitivity & runtime
+	opt->minPrefixLength = opt->suffixSampleOffset = 2000; //reducing these may increase sensitivity & runtime
 	opt->prefixIncrementFactor = std::pow((opt->maxPrefixLength - 1) * 1.0/ opt->minPrefixLength, 0.5);
 	opt->min_mapq = 5;
 	opt->min_qcov = 0.5;
@@ -93,7 +93,7 @@ int mm_set_opt(const char *preset, mm_idxopt_t *io, mm_mapopt_t *mo)
 	} else if (strcmp(preset, "map-pb") == 0) { //hifi
 		io->flag = 0, io->k = 15;
 		mo->maxPrefixLength = mo->stage2_max_gap = 8000; //reduced
-		mo->suffixSampleOffset = mo->minPrefixLength = 500; //reduced
+		mo->suffixSampleOffset = mo->minPrefixLength = 1000; //reduced
 		mo->stage2_bw = 1000; //reduced (making it longer could break alignments near long SVs)
 		mo->prefixIncrementFactor = std::pow((mo->maxPrefixLength - 1) * 1.0/ mo->minPrefixLength, 0.33); //inc. levels
 	} else if (strcmp(preset, "map-pb-clr") == 0) {
