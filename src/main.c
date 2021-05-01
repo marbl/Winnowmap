@@ -113,6 +113,7 @@ int main(int argc, char *argv[])
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
 	int i, c, n_threads = std::max(3, (int) std::thread::hardware_concurrency()/2), n_parts, old_best_n = -1;
+	bool n_threads_override = false;
 	//by default, we set pthread count to half of hardware supported threads
 	char *fnw = 0, *rg = 0, *junc_bed = 0, *s;
 	FILE *fp_help = stderr;
@@ -147,7 +148,7 @@ int main(int argc, char *argv[])
 		else if (c == 'H') ipt.flag |= MM_I_HPC;
 		else if (c == 'd') fnw = o.arg; // the above are indexing related options, except -I
 		else if (c == 'r') opt.bw = (int)mm_parse_num(o.arg);
-		else if (c == 't') n_threads = atoi(o.arg);
+		else if (c == 't') {n_threads = atoi(o.arg); n_threads_override = true;}
 		else if (c == 'v') mm_verbose = atoi(o.arg);
 		else if (c == 'g') opt.max_gap = (int)mm_parse_num(o.arg);
 		else if (c == 'G') mm_mapopt_max_intron_len(&opt, (int)mm_parse_num(o.arg));
@@ -217,7 +218,11 @@ int main(int argc, char *argv[])
 		else if (c == 338) opt.max_qlen = mm_parse_num(o.arg); // --max-qlen
 		else if (c == 340) junc_bed = o.arg; // --junc-bed
 		else if (c == 342) opt.flag |= MM_F_SAM_HIT_ONLY; // --sam-hit-only
-		else if (c == 343) opt.SVaware = false; // --sv-off (defaults back to ISMB'20 version)
+		else if (c == 343) {
+			opt.SVaware = false; // --sv-off (defaults back to ISMB'20 version)
+			if (n_threads_override == false) // --adjust thread count as openmp is not used
+				n_threads = std::max(3, (int) std::thread::hardware_concurrency());
+		}
 		else if (c == 314) { // --frag
 			yes_or_no(&opt, MM_F_FRAG_MODE, o.longidx, o.arg, 1);
 		} else if (c == 315) { // --secondary
