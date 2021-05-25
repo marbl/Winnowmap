@@ -61,12 +61,14 @@ typedef struct {
 	char *name;      // name of the db sequence
 	uint64_t offset; // offset in mm_idx_t::S
 	uint32_t len;    // length
+	uint32_t is_alt;
 } mm_idx_seq_t;
 
 typedef struct {
 	int32_t b, w, k, flag;
 	uint32_t n_seq;            // number of reference sequences
 	int32_t index;
+	int32_t n_alt;
 	mm_idx_seq_t *seq;         // sequence name, length and offset
 	uint32_t *S;               // 4-bit packed sequence
 	struct mm_idx_bucket_s *B; // index (hidden)
@@ -95,7 +97,7 @@ typedef struct {
 	int32_t mlen, blen;     // seeded exact match length; seeded alignment block length
 	int32_t n_sub;          // number of suboptimal mappings
 	int32_t score0;         // initial chaining score (before chain merging/spliting)
-	uint32_t mapq:8, split:2, rev:1, inv:1, sam_pri:1, proper_frag:1, pe_thru:1, seg_split:1, seg_id:8, split_inv:1, dummy:7;
+	uint32_t mapq:8, split:2, rev:1, inv:1, sam_pri:1, proper_frag:1, pe_thru:1, seg_split:1, seg_id:8, split_inv:1, is_alt:1, dummy:6;
 	uint32_t hash;
 	float div;
 	mm_extra_t *p;
@@ -122,6 +124,7 @@ typedef struct {
 	int max_chain_skip, max_chain_iter;
 	int min_cnt;         // min number of minimizers on each chain
 	int min_chain_score; // min chaining score
+	float chain_gap_scale;
 
 	//stage 1 parameters
 	bool SVaware;
@@ -140,12 +143,14 @@ typedef struct {
 	int stage2_extension_inc;
 
 	float mask_level;
+	int mask_len;
 	float pri_ratio;
 	int best_n;      // top best_n chains are subjected to DP alignment
 
 	int max_join_long, max_join_short;
 	int min_join_flank_sc;
 	float min_join_flank_ratio;
+	float alt_drop;
 
 	int a, b, q, e, q2, e2; // matching score, mismatch, gap-open and gap-ext penalties
 	int sc_ambi; // score when one or both bases are "N"

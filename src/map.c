@@ -256,7 +256,7 @@ static mm128_t *collect_seed_hits(void *km, const mm_mapopt_t *opt, int max_occ,
 static void chain_post(const mm_mapopt_t *opt, int max_chain_gap_ref, const mm_idx_t *mi, void *km, int qlen, int n_segs, const int *qlens, int *n_regs, mm_reg1_t *regs, mm128_t *a)
 {
 	if (!(opt->flag & MM_F_ALL_CHAINS)) { // don't choose primary mapping(s)
-		mm_set_parent(km, opt->mask_level, *n_regs, regs, opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL);
+		mm_set_parent(km, opt->mask_level, opt->mask_len, *n_regs, regs, opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL, opt->alt_drop);
 		if (n_segs <= 1) mm_select_sub(km, opt->pri_ratio, mi->k*2, opt->best_n, n_regs, regs);
 		else mm_select_sub_multi(km, opt->pri_ratio, 0.2f, 0.7f, max_chain_gap_ref, mi->k*2, opt->best_n, n_segs, qlens, n_regs, regs);
 		if (!(opt->flag & (MM_F_SPLICE|MM_F_SR|MM_F_NO_LJOIN))) // long join not working well without primary chains
@@ -264,12 +264,12 @@ static void chain_post(const mm_mapopt_t *opt, int max_chain_gap_ref, const mm_i
 	}
 }
 
-static mm_reg1_t *align_regs(const mm_mapopt_t *opt, const mm_idx_t *mi, void *km, int qlen, const char *seq, int *n_regs, mm_reg1_t *regs, mm128_t *a, bool finalstage)
+static mm_reg1_t *align_regs(const mm_mapopt_t *opt, const mm_idx_t *mi, void *km, int qlen, const char *seq, int *n_regs, mm_reg1_t *regs, mm128_t *a)
 {
 	if (!(opt->flag & MM_F_CIGAR)) return regs;
-	regs = mm_align_skeleton(km, opt, mi, qlen, seq, n_regs, regs, a, finalstage); // this calls mm_filter_regs()
+	regs = mm_align_skeleton(km, opt, mi, qlen, seq, n_regs, regs, a); // this calls mm_filter_regs()
 	if (!(opt->flag & MM_F_ALL_CHAINS)) { // don't choose primary mapping(s)
-		mm_set_parent(km, opt->mask_level, *n_regs, regs, opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL);
+		mm_set_parent(km, opt->mask_level, opt->mask_len, *n_regs, regs, opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL, opt->alt_drop);
 		mm_select_sub(km, opt->pri_ratio, mi->k*2, opt->best_n, n_regs, regs);
 		mm_set_sam_pri(*n_regs, regs);
 	}
@@ -386,7 +386,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 							min_chain_gap_ref = opt_2->min_gap_ref;
 						else min_chain_gap_ref = max_chain_gap_ref;
 
-						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, opt->chain_gap_scale, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
 
 						if (opt_2->max_occ > opt_2->mid_occ && rep_len > 0) {
 							int rechain = 0;
@@ -408,7 +408,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 								kfree(b->km, mini_pos);
 								if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
 								else a = collect_seed_hits(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-								a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+								a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, opt->chain_gap_scale, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
 							}
 						}
 						b->frag_gap = max_chain_gap_ref;
@@ -426,7 +426,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 						if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);
 
 						if (n_segs == 1) { // uni-segment
-							regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a, false);
+							regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a);
 							mm_set_mapq(b->km, n_regs0, regs0, opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
 							n_regs[0] = n_regs0, regs[0] = regs0;
 						} else { // multi-segment
@@ -434,8 +434,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 							seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
 							free(regs0);
 							for (i = 0; i < n_segs; ++i) {
-								mm_set_parent(b->km, opt_2->mask_level, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
-								regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a, false);
+								mm_set_parent(b->km, opt_2->mask_level, opt_2->mask_len, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL, opt_2->alt_drop); // update mm_reg1_t::parent
+								regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
 								mm_set_mapq(b->km, n_regs[i], regs[i], opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
 							}
 							mm_seg_free(b->km, n_segs, seg);
@@ -558,7 +558,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 							min_chain_gap_ref = opt_2->min_gap_ref;
 						else min_chain_gap_ref = max_chain_gap_ref;
 
-						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+						a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, opt->chain_gap_scale, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
 
 						if (opt_2->max_occ > opt_2->mid_occ && rep_len > 0) {
 							int rechain = 0;
@@ -580,7 +580,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 								kfree(b->km, mini_pos);
 								if (opt_2->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
 								else a = collect_seed_hits(b->km, opt_2, opt_2->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-								a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+								a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_2->bw, opt_2->max_chain_skip, opt_2->max_chain_iter, opt_2->min_cnt, opt_2->min_chain_score, opt->chain_gap_scale, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
 							}
 						}
 						b->frag_gap = max_chain_gap_ref;
@@ -598,7 +598,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 						if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);
 
 						if (n_segs == 1) { // uni-segment
-							regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a, false);
+							regs0 = align_regs(opt_2, mi, b->km, sub_qlens[0], sub_seqs[0], &n_regs0, regs0, a);
 							mm_set_mapq(b->km, n_regs0, regs0, opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
 							n_regs[0] = n_regs0, regs[0] = regs0;
 						} else { // multi-segment
@@ -606,8 +606,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 							seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
 							free(regs0);
 							for (i = 0; i < n_segs; ++i) {
-								mm_set_parent(b->km, opt_2->mask_level, n_regs[i], regs[i], opt_2->a * 2 + opt_2->b, opt_2->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
-								regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a, false);
+								mm_set_parent(b->km, opt->mask_level, opt->mask_len, n_regs[i], regs[i], opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL, opt->alt_drop); // update mm_reg1_t::parent
+								regs[i] = align_regs(opt_2, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
 								mm_set_mapq(b->km, n_regs[i], regs[i], opt_2->min_chain_score, opt_2->a, rep_len, is_sr);
 							}
 							mm_seg_free(b->km, n_segs, seg);
@@ -887,7 +887,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			min_chain_gap_ref = opt_3->min_gap_ref;
 		else min_chain_gap_ref = max_chain_gap_ref;
 
-		a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_3->bw, opt_3->max_chain_skip, opt_3->max_chain_iter, opt_3->min_cnt, opt_3->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+		a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_3->bw, opt_3->max_chain_skip, opt_3->max_chain_iter, opt_3->min_cnt, opt_3->min_chain_score, opt->chain_gap_scale, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
 
 		if (opt_3->max_occ > opt_3->mid_occ && rep_len > 0) {
 			int rechain = 0;
@@ -910,7 +910,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 				//kfree(b->km, mini_pos); //already freed above
 				if (opt_3->flag & MM_F_HEAP_SORT) a = collect_seed_hits_heap(b->km, opt_3, opt_3->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
 				else a = collect_seed_hits(b->km, opt_3, opt_3->max_occ, mi, qname, &mv, qlen_sum, &n_a, &rep_len, &n_mini_pos, &mini_pos);
-				a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_3->bw, opt_3->max_chain_skip, opt_3->max_chain_iter, opt_3->min_cnt, opt_3->min_chain_score, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
+				a = mm_chain_dp(max_chain_gap_ref, min_chain_gap_ref, max_chain_gap_qry, opt_3->bw, opt_3->max_chain_skip, opt_3->max_chain_iter, opt_3->min_cnt, opt_3->min_chain_score, opt->chain_gap_scale, is_splice, n_segs, n_a, a, &n_regs0, &u, b->km);
 			}
 		}
 		b->frag_gap = max_chain_gap_ref;
@@ -929,7 +929,7 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 		/*if (!is_sr) mm_est_err(mi, qlen_sum, n_regs0, regs0, a, n_mini_pos, mini_pos);*/
 
 		if (n_segs == 1) { // uni-segment
-			regs0 = align_regs(opt_3, mi, b->km, qlens[0], seqs[0], &n_regs0, regs0, a, true);
+			regs0 = align_regs(opt_3, mi, b->km, qlens[0], seqs[0], &n_regs0, regs0, a);
 			mm_set_mapq(b->km, n_regs0, regs0, opt_3->min_chain_score, opt_3->a, rep_len, is_sr);
 			n_regs[0] = n_regs0, regs[0] = regs0;
 			//TODO: find a better way to compute mapping quality
@@ -938,8 +938,8 @@ void mm_map_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **
 			seg = mm_seg_gen(b->km, hash, n_segs, qlens, n_regs0, regs0, n_regs, regs, a); // split fragment chain to separate segment chains
 			free(regs0);
 			for (i = 0; i < n_segs; ++i) {
-				mm_set_parent(b->km, opt_3->mask_level, n_regs[i], regs[i], opt_3->a * 2 + opt_3->b, opt_3->flag&MM_F_HARD_MLEVEL); // update mm_reg1_t::parent
-				regs[i] = align_regs(opt_3, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a, true);
+				mm_set_parent(b->km, opt_3->mask_level, opt_3->mask_len, n_regs[i], regs[i], opt_3->a * 2 + opt_3->b, opt_3->flag&MM_F_HARD_MLEVEL, opt->alt_drop); // update mm_reg1_t::parent
+				regs[i] = align_regs(opt_3, mi, b->km, qlens[i], seqs[i], &n_regs[i], regs[i], seg[i].a);
 				mm_set_mapq(b->km, n_regs[i], regs[i], opt_3->min_chain_score, opt_3->a, rep_len, is_sr);
 			}
 			mm_seg_free(b->km, n_segs, seg);
@@ -1089,8 +1089,8 @@ static void merge_hits(step_t *s)
 					}
 				}
 			}
-			mm_hit_sort(km, &s->n_reg[k], s->reg[k]);
-			mm_set_parent(km, opt->mask_level, s->n_reg[k], s->reg[k], opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL);
+			mm_hit_sort(km, &s->n_reg[k], s->reg[k], opt->alt_drop);
+			mm_set_parent(km, opt->mask_level, opt->mask_len, s->n_reg[k], s->reg[k], opt->a * 2 + opt->b, opt->flag&MM_F_HARD_MLEVEL, opt->alt_drop);
 			if (!(opt->flag & MM_F_ALL_CHAINS)) {
 				mm_select_sub(km, opt->pri_ratio, s->p->mi->k*2, opt->best_n, &s->n_reg[k], s->reg[k]);
 				mm_set_sam_pri(s->n_reg[k], s->reg[k]);
