@@ -48,7 +48,7 @@ For either mapping long reads or computing whole-genome alignments, Winnowmap re
 When comparing Winnowmap (v1.0) to minimap2 (v2.17-r954), we observed a reduction in the mapping error-rate from 0.14% to 0.06% in the recently finished [human X chromosome](https://github.com/nanopore-wgs-consortium/CHM13), and from 3.6% to 0% within the highly repetitive X centromere (3.1 Mbp). Winnowmap improves mapping accuracy within repeats and achieves these results with sparser sampling, leading to better index compression and competitive runtimes. By avoiding masking, we show that Winnowmap maintains uniform minimizer density.
 
 <p align="center">
-<img src="https://1aaaa1f6-a-62cb3a1a-s-sites.googlegroups.com/site/chirgjain/readme-winnowmap-density.jpg?attachauth=ANoY7cost_TsHo3yjf_COK13C-JBDQIio-GCb_hNSAdMQ92aRqISg21pJsg5dMKD5yMalcAugwI5vkqf9Cdu3sVk-xBz-SkRMkuyWAk3vK06_LEF2ay1pNSzCxU6nUNywhTYb5li8moC-YzRMmJZt7r3KFvcI34IbD7rktjXAPn_5Jba86E19uXq2o6zjAEDmsfjrKxqAdbsnPL3bU8L4wHwsH9gyv6170wD7WFJ_8pfFjeWam0v2uY%3D&attredirects=0" width=400px"> <br>
+<img src="https://i.postimg.cc/MKtqBYPn/readme-winnowmap-density.jpg" width=400px"> <br>
 Minimizer sampling density using a human X chromosome as the reference, with the centromere positioned between 58 Mbp and 61 Mbp. ‘Standard’ method refers to the classic minimizer sampling algorithm from <a href="http://www.cs.toronto.edu/~wayne/research/papers/minimizers.pdf">Roberts et al.</a>, without any masking or modification.
 </p>
 
