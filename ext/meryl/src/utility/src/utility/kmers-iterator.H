@@ -36,7 +36,7 @@ public:
     addSequence(NULL, 0);
   };
   kmerIterator(FILE *input);
-  kmerIterator(char *buffer, uint64 bufferLen) {
+  kmerIterator(char const *buffer, uint64 bufferLen) {
     assert(kmer::merSize() > 0);
     reset();
     addSequence(buffer, bufferLen);
@@ -48,7 +48,7 @@ public:
     _kmerValid  = _fmer.merSize() - 1;
   };
 
-  void       addSequence(char *buffer, uint64 bufferLen) {
+  void       addSequence(char const *buffer, uint64 bufferLen) {
     _buffer    = buffer;
     _bufferLen = bufferLen;
     _bufferPos = 0;
@@ -163,16 +163,16 @@ public:
   uint64     endPosition(void)  { return(_bufferPos);                };
 
 private:
-  uint32    _kmerSize;
-  uint32    _kmerLoad;
-  uint32    _kmerValid;
+  uint32       _kmerSize;
+  uint32       _kmerLoad;
+  uint32       _kmerValid;
 
-  char     *_buffer;
-  uint64    _bufferLen;
-  uint64    _bufferPos;
+  char const  *_buffer;
+  uint64       _bufferLen;
+  uint64       _bufferPos;
 
-  kmerTiny  _fmer;
-  kmerTiny  _rmer;
+  kmerTiny     _fmer;
+  kmerTiny     _rmer;
 };
 
 

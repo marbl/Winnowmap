@@ -49,6 +49,8 @@ public:
 
   void        setWriterQueueSize(uint32 queueSize) { _writerQueueSize = queueSize;  _writerQueueMax = queueSize; };
 
+  void        setInOrderOutput(bool o)             { _writeInOrder = o; };
+
   void        run(void *user=0L, bool beVerbose=false);
 private:
 
@@ -65,9 +67,11 @@ private:
   void   *status(void);
 
   //  Utilities for the loader thread
-  //void    loaderAdd(sweatShopState *thisState);
-  void    loaderSave(sweatShopState *&tail, sweatShopState *&head, sweatShopState *thisState);
-  void    loaderAppend(sweatShopState *&tail, sweatShopState *&head);
+  void    loaderAddToLocal(sweatShopState *&tail, sweatShopState *&head, sweatShopState *thisState);
+  void    loaderAppendToGlobal(sweatShopState *&tail, sweatShopState *&head, uint32 num);
+
+  //  Utilities for the writer thread
+  void    writerWrite(sweatShopState *w);
 
   pthread_mutex_t        _stateMutex;
 
@@ -82,6 +86,7 @@ private:
   sweatShopState        *_loaderP;  //  Where input is put, the head
 
   bool                   _showStatus;
+  bool                   _writeInOrder;
 
   uint32                 _loaderQueueSize, _loaderQueueMin, _loaderQueueMax;
   uint32                 _loaderBatchSize;

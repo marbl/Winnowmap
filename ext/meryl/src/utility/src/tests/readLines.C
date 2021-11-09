@@ -17,19 +17,30 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "types.H"
 #include "files.H"
 
-//  Basic routines to fetch and stash files from an object store.
-//  Most of this is done in the executive, but low level fetching
-//  of sqStore and ovStore data is done here.
-//
-//  NOTE that this function is limited in its ability to fetch files.
-//  It will ONLY work with seqStore and ovlStore data files:
-//     seqStore/blobs.*
-//     ovlStore/0000<000>
-//
-//  Returns false if the file was not fetched (either no object store
-//  in use, or the file existed already), true if it was fetched.
-//
-bool   fetchFromObjectStore(char *filename);
+int32
+main(int32 argc, char **argv) {
+  uint32   lineMax = 0;
+  uint32   lineLen = 0;
+  char    *line    = nullptr;
+  uint32   nLines  = 0;
+
+  if (argc == 1) {
+    fprintf(stderr, "usage: %s inputFile[.gz]\n", argv[0]);
+    return(1);
+  }
+
+  compressedFileReader  *in = new compressedFileReader(argv[1]);
+
+  while (AS_UTL_readLine(line, lineLen, lineMax, in->file())) {
+    nLines++;
+  }
+
+  delete    in;
+  delete [] line;
+
+  fprintf(stderr, "Found %u lines!  Yay!\n", nLines);
+
+  return(0);
+}

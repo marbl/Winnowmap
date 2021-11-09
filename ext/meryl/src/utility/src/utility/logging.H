@@ -152,6 +152,11 @@ public:
   void        flush(void);
 
 private:
+  uint32                       _threadMax;   //  How many threads we can allocate.
+  uint32                       _threadNum;   //  How many threads we have configured.
+
+  uint64                       _maxSize;
+
   logFileInstance             *_mainI;
   logFileInstance            **_threadI;
 

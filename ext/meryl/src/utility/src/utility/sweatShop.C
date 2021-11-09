@@ -48,15 +48,17 @@ public:
 class sweatShopState {
 public:
   sweatShopState(void *userData) {
-    _user     = userData;
-    _computed = false;
-    _next     = 0L;
+    _user      = userData;
+    _computed  = false;
+    _outputted = false;
+    _next      = 0L;
   };
   ~sweatShopState() {
   };
 
   void             *_user;
   bool              _computed;
+  bool              _outputted;
   sweatShopState   *_next;
 };
 
@@ -105,6 +107,7 @@ sweatShop::sweatShop(void*(*loaderfcn)(void *G),
   _loaderP          = 0L;
 
   _showStatus       = false;
+  _writeInOrder     = true;
 
   _loaderQueueSize  = 1024;
   _loaderQueueMax   = 10240;
@@ -146,7 +149,7 @@ sweatShop::setThreadData(uint32 t, void *x) {
 //  Build a list of states to add in one swoop
 //
 void
-sweatShop::loaderSave(sweatShopState *&tail, sweatShopState *&head, sweatShopState *thisState) {
+sweatShop::loaderAddToLocal(sweatShopState *&tail, sweatShopState *&head, sweatShopState *thisState) {
 
   thisState->_next  = 0L;
 
@@ -156,14 +159,13 @@ sweatShop::loaderSave(sweatShopState *&tail, sweatShopState *&head, sweatShopSta
   } else {
     tail = head = thisState;
   }
-  _numberLoaded++;
 }
 
 
 //  Add a bunch of new states to the queue.
 //
 void
-sweatShop::loaderAppend(sweatShopState *&tail, sweatShopState *&head) {
+sweatShop::loaderAppendToGlobal(sweatShopState *&tail, sweatShopState *&head, uint32 num) {
   int err;
 
   if ((tail == 0L) || (head == 0L))
@@ -182,6 +184,8 @@ sweatShop::loaderAppend(sweatShopState *&tail, sweatShopState *&head) {
   }
   _loaderP        = head;
 
+  _numberLoaded += num;
+
   err = pthread_mutex_unlock(&_stateMutex);
   if (err != 0)
     fprintf(stderr, "sweatShop::loaderAppend()--  Failed to unlock mutex (%d).  Fail.\n", err), exit(1);
@@ -194,56 +198,52 @@ sweatShop::loaderAppend(sweatShopState *&tail, sweatShopState *&head) {
 
 void*
 sweatShop::loader(void) {
-
   struct timespec   naptime;
+  sweatShopState   *tail       = nullptr;  //  A local list, to reduce the number of times we
+  sweatShopState   *head       = nullptr;  //  lock the global list.
+  uint32            numLoaded  = 0;
+
   naptime.tv_sec      = 0;
   naptime.tv_nsec     = 166666666ULL;  //  1/6 second
 
-  //  We can batch several loads together before we push them onto the
-  //  queue, this should reduce the number of times the loader needs to
-  //  lock the queue.
-  //
-  //  But it also increases the latency, so it's disabled by default.
-  //
-  sweatShopState        *tail       = 0L;  //  The first thing loaded
-  sweatShopState        *head       = 0L;  //  The last thing loaded
-  uint32                 numLoaded  = 0;
+  while (1) {
+    void *object = NULL;
 
-  bool  moreToLoad = true;
-
-  while (moreToLoad) {
-
-    //  Zzzzzzz....
-    while (_numberLoaded > _numberComputed + _loaderQueueSize)
+    while (_numberLoaded > _numberComputed + _loaderQueueSize)  //  Sleep if the queue is too big.
       nanosleep(&naptime, 0L);
 
-    void *object = NULL;
+    //  If a userLoader function exists, use it to load the data object, then
+    //  make a new state for that object.
 
     if (_userLoader)
       object = (*_userLoader)(_globalUserData);
 
     sweatShopState  *thisState = new sweatShopState(object);
 
-    //  If we actually loaded a new state, add it
-    //
-    if (thisState->_user) {
-      loaderSave(tail, head, thisState);
-      numLoaded++;
-      if (numLoaded >= _loaderBatchSize)
-        loaderAppend(tail, head);
-    } else {
-      //  Didn't read, must be all done!  Push on the end-of-input marker state.
-      //
-      loaderSave(tail, head, new sweatShopState(0L));
-      loaderAppend(tail, head);
+    //  If there is no user pointer, we've run out of inputs.
+    //  Push on the empty state to the local list, force an append
+    //  to the global list, and exit this loader function.
 
-      moreToLoad = false;
-      delete thisState;
+    if (thisState->_user == nullptr) {
+      loaderAddToLocal(tail, head, thisState);
+      loaderAppendToGlobal(tail, head, numLoaded + 1);
+
+      return(nullptr);
+    }
+
+    //  Otherwise, we've loaded a user object.  Push it onto the local list,
+    //  then merge into the global list if the local list is long enough.
+
+    loaderAddToLocal(tail, head, thisState);
+    numLoaded++;
+
+    if (numLoaded >= _loaderBatchSize) {
+      loaderAppendToGlobal(tail, head, numLoaded);
+      numLoaded = 0;
     }
   }
 
-  //fprintf(stderr, "sweatShop::reader exits.\n");
-  return(0L);
+  return(nullptr);  //  Never returns.
 }
 
 
@@ -286,7 +286,7 @@ sweatShop::worker(sweatShopWorker *workerData) {
 
     err = pthread_mutex_unlock(&_stateMutex);
     if (err != 0)
-      fprintf(stderr, "sweatShop::worler()--  Failed to lock mutex (%d).  Fail.\n", err), exit(1);
+      fprintf(stderr, "sweatShop::worker()--  Failed to lock mutex (%d).  Fail.\n", err), exit(1);
 
 
     if (workerData->workerQueueLen == 0) {
@@ -324,45 +324,68 @@ sweatShop::worker(sweatShopWorker *workerData) {
 }
 
 
+void
+sweatShop::writerWrite(sweatShopState *w) {
+
+  if (_userWriter)
+    (*_userWriter)(_globalUserData, w->_user);
+  _numberOutput++;
+
+  w->_outputted = true;
+}
+
+
 void*
 sweatShop::writer(void) {
   sweatShopState  *deleteState = 0L;
+  struct timespec naptime1 = { .tv_sec = 0, .tv_nsec = 5000000ULL };
+  struct timespec naptime2 = { .tv_sec = 0, .tv_nsec = 5000000ULL };
 
-  //  Wait for output to appear, then write.
-  //
-  while (_writerP && _writerP->_user) {
 
-    if        (_writerP->_computed == false) {
-      //  Wait for a slow computation.
-      struct timespec   naptime;
-      naptime.tv_sec      = 0;
-      naptime.tv_nsec     = 5000000ULL;
+  while ((_writerP        != nullptr) &&
+         (_writerP->_user != nullptr)) {
 
-      //fprintf(stderr, "Writer waits for slow thread at " F_U64 ".\n", _numberOutput);
-      nanosleep(&naptime, 0L);
-    } else if (_writerP->_next == 0L) {
-      //  Wait for the input.
-      struct timespec   naptime;
-      naptime.tv_sec      = 0;
-      naptime.tv_nsec     = 5000000ULL;
-
-      //fprintf(stderr, "Writer waits for all threads at " F_U64 ".\n", _numberOutput);
-      nanosleep(&naptime, 0L);
-    } else {
-      if (_userWriter)
-        (*_userWriter)(_globalUserData, _writerP->_user);
-      _numberOutput++;
-
-      deleteState = _writerP;
-      _writerP    = _writerP->_next;
-      delete deleteState;
+    //  If a complete result, write it.
+    if ((_writerP->_computed  == true) &&
+        (_writerP->_outputted == false)) {
+      writerWrite(_writerP);
+      continue;
     }
+
+    //  If we can write output out-of-order, search ahead
+    //  for any results and output them.
+    //  if (_outOfOrder == true)
+    if (_writeInOrder == false) {
+      for (sweatShopState *ss = _writerP; ss != nullptr; ss = ss->_next)
+        if ((ss->_computed  == true) &&
+            (ss->_outputted == false)) {
+          writerWrite(ss);
+        }
+    }
+
+    //  If no next, wait for input to appear.  We can't purge this node
+    //  from the list until there is a next, else we lose the list!
+    if (_writerP->_next == nullptr) {
+      nanosleep(&naptime1, 0L);
+      continue;
+    }
+
+    //  If already output, remove the node.
+    if (_writerP->_outputted == true) {
+      sweatShopState *ds = _writerP;
+      _writerP           = _writerP->_next;
+
+      delete ds;
+      continue;
+    }
+
+    //  Otherwise, we need to wait for a state to appear on the queue.
+    nanosleep(&naptime2, 0L);
   }
 
   //  Tell status to stop.
   _writerP = 0L;
 
-  //fprintf(stderr, "sweatShop::writer exits.\n");
   return(0L);
 }
 

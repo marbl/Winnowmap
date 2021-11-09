@@ -25,6 +25,16 @@
 
 #include "types.H"
 
-int AS_configure(int argc, char **argv);
+//  AS_configure() will set some run-time stuff like FPU modes and initialize
+//  accounting (like time since the start of execution).
+//
+//  Most importantly, it will query the environment to decide how many
+//  threads to enable.  The maxThreads parameter can be used to restrict this
+//  to something _lower_.  To set the number of threads to something
+//  arbitrary, call AS_configure() then setNumThreads().
+//
+//  Lastly, AS_configure() will handle the --version switch.
+//
+int AS_configure(int argc, char **argv, uint32 maxThreads=uint32max);
 
 #endif

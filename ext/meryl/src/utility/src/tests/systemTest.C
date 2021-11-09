@@ -18,22 +18,69 @@
  */
 
 #include "system.H"
-
+#include "runtime.H"
 
 int
 main(int argc, char **argv) {
-
-  fprintf(stderr, "This is most useful if you run it as 'time %s'\n", argv[0]);
-  fprintf(stderr, "then compare the two reports.\n");
-  fprintf(stderr, "\n");
+  bool doHelp = false;
 
   getProcessTime();  //  initialize.
 
-  double   *array = new double [1024 * 1024];
+  for (int32 arg=1; arg < argc; arg++) {
+    if      (strcmp(argv[arg], "-configure") == 0) {
+      if ((argv[arg+1] == nullptr) || (argv[arg+1][0] == '-')) {
+        fprintf(stderr, "Calling AS_configure().\n");
+        AS_configure(argc, argv);
+      } else {
+        arg++;
+        fprintf(stderr, "Calling AS_configure() with threads option '%s'.\n", argv[arg]);
+        AS_configure(argc, argv, strtouint32(argv[arg]));
+      }
+    }
 
-  for (int jj=0; jj<128; jj++)
-    for (int ii=0; ii<1024*1024; ii++)
-      array[ii] = sin(ii) + cos(jj);
+    else if (strcmp(argv[arg], "-threads") == 0) {
+      if ((argv[arg+1] == nullptr) || (argv[arg+1][0] == '-')) {
+        fprintf(stderr, "getMaxThreadsAllowed()--  %u\n", getMaxThreadsAllowed());
+        fprintf(stderr, "getNumThreads()--         %u\n", getNumThreads());
+        fprintf(stderr, "getNumThreadsActive()--   %u\n", getNumThreadsActive());
+        fprintf(stderr, "\n");
+      } else {
+        arg++;
+        fprintf(stderr, "getMaxThreadsAllowed()--  %u\n", getMaxThreadsAllowed());
+        fprintf(stderr, "setNumThreads(opt)--      %u with opt = '%s'\n", setNumThreads(argv[arg]), argv[arg]);
+        fprintf(stderr, "getNumThreads()--         %u\n", getNumThreads());
+        fprintf(stderr, "getNumThreadsActive()--   %u\n", getNumThreadsActive());
+        fprintf(stderr, "\n");
+      }
+    }
+
+    else if (strcmp(argv[arg], "-time") == 0) {
+      double   *array = new double [1024 * 1024];
+
+      for (int jj=0; jj<128; jj++)
+        for (int ii=0; ii<1024*1024; ii++)
+          array[ii] = sin(ii) + cos(jj);
+    }
+
+    else {
+      doHelp = true;
+    }
+  }
+
+  if ((argc == 1) || (doHelp == true)) {
+    fprintf(stderr, "This is most useful if you run it as 'time %s'\n", argv[0]);
+    fprintf(stderr, "then compare the two reports.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  -configure [N]  Call AS_configure with threads=N.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  -threads [N]    Test how various methods of setting the\n");
+    fprintf(stderr, "                  threads allowed behave.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  -time           Use some memory and report run time statistics.\n");
+    fprintf(stderr, "\n");
+
+    return(0);
+  }
 
   double     t = getTime();
   time_t     T = t;

@@ -16,429 +16,353 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
-
-#include "kmers.H"
-#include "system.H"
-#include "sequence.H"
-#include "bits.H"
-
-
-#define OP_NONE       0
-#define OP_DUMP       1
-#define OP_EXISTENCE  2
-#define OP_INCLUDE    3
-#define OP_EXCLUDE    4
-
+#include "meryl-lookup.H"
 
 
 void
-dumpExistence(dnaSeqFile                  *sfile,
-              compressedFileWriter        *ofile,
-              vector<merylExactLookup *>  &klookup,
-              vector<const char *>        &klabel) {
+lookupGlobal::initialize(void) {
 
-  //  Build a list of labels for each database.  If no labels are provided,
-  //  this is just an empty string.
+  //  Compute the max length of any single label.  Used during output.
 
-  char   **labels = new char * [klookup.size()];
+  lookupDBlabelLen = 0;
 
-  for (uint32 ll=0; ll<klookup.size(); ll++) {
-
-    //  If we don't have the ll'th input label, make an empty string.
-
-    if (klabel.size() <= ll) {
-      labels[ll]    = new char [1];
-      labels[ll][0] = 0;
-      continue;
-    }
-
-    //  Otherwise, we have a label, so allocate space for a tab, a copy of
-    //  the label, and a NUL byte, then create the string we'll output.
-
-    labels[ll] = new char [strlen(klabel[ll]) + 2];
-
-    labels[ll][0] = '\t';
-    strcpy(labels[ll] + 1, klabel[ll]);
-  }
-
-  //  Scan each sequence against each database.
-
-  char     fString[65];
-  char     rString[65];
-  dnaSeq   seq;
-
-  for (uint32 seqId=0; sfile->loadSequence(seq); seqId++) {
-    kmerIterator  kiter(seq.bases(), seq.length());
-
-    while (kiter.nextBase()) {
-      if (kiter.isValid() == false) {
-        fprintf(ofile->file(), "%s\t%u\t%lu\t%c\n",
-                seq.name(),
-                seqId,
-                kiter.position(),
-                kiter.isACGTbgn() ? 'n' : 'N');
-      }
-
-      else {
-        for (uint32 dd=0; dd<klookup.size(); dd++) {
-          uint64  fValue = 0;
-          uint64  rValue = 0;
-          bool    fExists = klookup[dd]->exists(kiter.fmer(), fValue);
-          bool    rExists = klookup[dd]->exists(kiter.rmer(), rValue);
-
-          fprintf(ofile->file(), "%s\t%u\t%lu\t%c\t%s\t%lu\t%s\t%lu\t%s\n",
-                  seq.name(),
-                  seqId,
-                  kiter.position(),
-                  (fExists || rExists) ? 'T' : 'F',
-                  kiter.fmer().toString(fString), fValue,
-                  kiter.rmer().toString(rString), rValue,
-                  labels[dd]);
-        }
-      }
-    }
-  }
+  for (uint32 ll=0; ll<lookupDBlabel.size(); ll++)
+    lookupDBlabelLen = std::max(lookupDBlabelLen, (uint32)strlen(lookupDBlabel[ll]));
 }
 
 
 
 void
-reportExistence(dnaSeqFile                  *sfile,
-                compressedFileWriter        *ofile,
-                vector<merylExactLookup *>  &klookup,
-                vector<const char *>        &klabel) {
-  dnaSeq   seq;
+lookupGlobal::loadLookupTables(void) {
+  std::vector<merylFileReader *>    merylDBs;    //  Input meryl database.
+  std::vector<double>               minMem;      //  Estimated min memory for lookup table.
+  std::vector<double>               optMem;      //  Estimated max memory for lookup table.
 
-  while (sfile->loadSequence(seq)) {
-    kmerIterator  kiter(seq.bases(), seq.length());
+  //  Open input meryl databases, initialize lookup.
 
-    uint64   nKmer      = 0;
-    uint64   nKmerFound = 0;
+  for (uint32 ii=0; ii<lookupDBname.size(); ii++) {
+    merylDBs .push_back(new merylFileReader(lookupDBname[ii]));
+    minMem   .push_back(0.0);
+    optMem   .push_back(0.0);
+    lookupDBs.push_back(new merylExactLookup());
+  }
 
-    while (kiter.nextMer()) {
-      nKmer++;
+  //  Estimate memory needed for each lookup table.
 
-      if ((klookup[0]->value(kiter.fmer()) > 0) ||
-          (klookup[0]->value(kiter.rmer()) > 0))
-        nKmerFound++;
+  //  Since estimateMemoryUsage() is now including space for temporary
+  //  buffers that are used only when loading, this estimate is significantly
+  //  too large for small datasets.  If table1 and table2 need only 5 GB
+  //  memory (each), the estimate for each will also include several GB for
+  //  buffers (based on the number of threads); 16 threads = 8 GB buffers.
+  //  So while the data needs 10 GB memory, meryl claims it needs 2x 13 GB =
+  //  26 GB memory.  Since the tables are loaded sequentially, it really only
+  //  needs 13 - 8 + 13 - 8 = 18 GB peak, 10 GB final.
+#warning estimate is too high
+
+  double   reqMemory    = 0.0;
+  bool     reportMemory = true;
+  bool     reportSizes  = true;
+
+  for (uint32 ii=0; ii<lookupDBname.size(); ii++) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Estimating memory usage for '%s'.\n", lookupDBname[ii]);
+
+    reqMemory += lookupDBs[ii]->estimateMemoryUsage(merylDBs[ii], maxMemory, 0, minV, maxV);
+  }
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Memory required:  %.3f GB\n", reqMemory);
+  fprintf(stderr, "Memory limit:     %.3f GB\n", maxMemory);
+
+  if (reqMemory > maxMemory) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Not enough memory to load databases.  Increase -memory.\n");
+    exit(1);
+  }
+
+  if (doEstimate == true) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Stopping after memory estimated reported; -estimate option enabled.\n");
+    exit(0);
+  }
+
+  //  Now load the data and forget about the input databases.
+
+  for (uint32 ii=0; ii<lookupDBname.size(); ii++) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Loading kmers from '%s' into lookup table.\n", lookupDBname[ii]);
+
+    if (lookupDBs[ii]->load(merylDBs[ii], maxMemory, 0, minV, maxV) < 0) {
+      fprintf(stderr, "Failed to load database #%u\n", ii);
+      exit(1);
     }
 
-    fprintf(ofile->file(), "%s\t%lu\t%lu\t%lu\n", seq.name(), nKmer, klookup[0]->nKmers(), nKmerFound);
+    delete merylDBs[ii];
   }
 }
 
 
 
+//  Open input sequences.
 void
-filter(dnaSeqFile                      *sfile1,
-       dnaSeqFile                      *sfile2,
-       compressedFileWriter            *ofile1,
-       compressedFileWriter            *ofile2,
-       vector<merylExactLookup *>  &klookup,
-       bool                             outputIfFound) {
+lookupGlobal::openInputs(void) {
 
-  //  Do nothing if there are no sequences.
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Opening inputs:\n");
 
-  if ((sfile1 == NULL) && (sfile2 == NULL))
-    return;
-
-  //  While we load sequences from all files supplied...
-
-  dnaSeq  seq1;
-  dnaSeq  seq2;
-
-  uint64   nReads      = 0;
-  uint64   nReadsFound = 0;
-
-  while (((sfile1 == NULL) || (sfile1->loadSequence(seq1))) &&
-         ((sfile2 == NULL) || (sfile2->loadSequence(seq2)))) {
-    uint32 nKmerFound = 0;
-
-    nReads++;
-
-    if (seq1.length() > 0) {
-      kmerIterator  kiter(seq1.bases(), seq1.length());
-
-      while (kiter.nextMer())
-        if ((klookup[0]->value(kiter.fmer()) > 0) ||
-            (klookup[0]->value(kiter.rmer()) > 0))
-          nKmerFound++;
-    }
-
-    if (seq2.length() > 0) {
-      kmerIterator  kiter(seq2.bases(), seq2.length());
-
-      while (kiter.nextMer())
-        if ((klookup[0]->value(kiter.fmer()) > 0) ||
-            (klookup[0]->value(kiter.rmer()) > 0))
-          nKmerFound++;
-    }
-
-    //  Report the sequence if:
-    //    any kmers are found and     ifFound
-    //    no  kmers are found and not ifFound
-
-    if ((nKmerFound > 0) == outputIfFound) {
-      nReadsFound++;
-
-      if (sfile1 != NULL) {
-        if (seq1.quals()[0] == 0)   fprintf(ofile1->file(), ">%s nKmers=%u\n%s\n",        seq1.name(), nKmerFound, seq1.bases());
-        else                        fprintf(ofile1->file(), "@%s nKmers=%u\n%s\n+\n%s\n", seq1.name(), nKmerFound, seq1.bases(), seq1.quals());
-      }
-
-      if (sfile2 != NULL) {
-        if (seq2.quals()[0] == 0)   fprintf(ofile2->file(), ">%s nKmers=%u\n%s\n",        seq2.name(), nKmerFound, seq2.bases());
-        else                        fprintf(ofile2->file(), "@%s nKmers=%u\n%s\n+\n%s\n", seq2.name(), nKmerFound, seq2.bases(), seq2.quals());
-      }
-    }
+  if (seqName1) {
+    fprintf(stderr, "  '%s'\n", seqName1);
+    seqFile1 = new dnaSeqFile(seqName1);
   }
 
-  fprintf(stderr, "\nIncluding %lu reads (or read pairs) out of %lu.\n", nReadsFound, nReads);
+  if (seqName2) {
+    fprintf(stderr, "  '%s'\n", seqName2);
+    seqFile2 = new dnaSeqFile(seqName2);
+  }
 }
+
+
+
+//  Open output writers.
+void
+lookupGlobal::openOutputs(void) {
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Opening outputs:\n");
+
+  if (outName1) {
+    fprintf(stderr, "  '%s'\n", outName1);
+    outFile1 = new compressedFileWriter(outName1);
+  }
+
+  if (outName2) {
+    fprintf(stderr, "  '%s'\n", outName1);
+    outFile2 = new compressedFileWriter(outName2);
+  }
+}
+
+
+
 
 
 
 int
 main(int argc, char **argv) {
-  char           *seqName1 = NULL;
-  char           *seqName2 = NULL;
-
-  char           *outName1 = NULL;
-  char           *outName2 = NULL;
-
-  vector<const char *>  inputDBname;
-  vector<const char *>  inputDBlabel;
-
-  uint64          minV       = 0;
-  uint64          maxV       = UINT64_MAX;
-  uint32          threads    = omp_get_max_threads();
-  uint32          memory     = 0;
-  uint32          reportType = OP_NONE;
+  lookupGlobal  *G = new lookupGlobal;
 
   argc = AS_configure(argc, argv);
 
-  vector<char *>  err;
-  int             arg = 1;
-  while (arg < argc) {
+  uint32  lThreads = 0;   //  Threads for loading kmer databases
+  uint32  nThreads = 0;   //  Threads for computing stuff
+
+  std::vector<char const *>  err;
+  for (int32 arg=1; arg < argc; arg++) {
     if        (strcmp(argv[arg], "-sequence") == 0) {
-      seqName1 = argv[++arg];
+      G->seqName1 = argv[++arg];
 
       if ((arg + 1 < argc) && (argv[arg + 1][0] != '-'))
-        seqName2 = argv[++arg];
+        G->seqName2 = argv[++arg];
 
     } else if (strcmp(argv[arg], "-mers") == 0) {
       while ((arg + 1 < argc) && (argv[arg + 1][0] != '-'))
-        inputDBname.push_back(argv[++arg]);
+        G->lookupDBname.push_back(argv[++arg]);
 
     } else if (strcmp(argv[arg], "-labels") == 0) {
       while ((arg + 1 < argc) && (argv[arg + 1][0] != '-'))
-        inputDBlabel.push_back(argv[++arg]);
+        G->lookupDBlabel.push_back(argv[++arg]);
 
     } else if (strcmp(argv[arg], "-output") == 0) {
-      outName1 = argv[++arg];
+      G->outName1 = argv[++arg];
 
       if ((arg + 1 < argc) && (argv[arg + 1][0] != '-'))
-        outName2 = argv[++arg];
+        G->outName2 = argv[++arg];
 
     } else if (strcmp(argv[arg], "-min") == 0) {
-      minV = strtouint64(argv[++arg]);
+      G->minV = (kmvalu)strtouint32(argv[++arg]);
 
     } else if (strcmp(argv[arg], "-max") == 0) {
-      maxV = strtouint64(argv[++arg]);
+      G->maxV = (kmvalu)strtouint32(argv[++arg]);
 
     } else if (strcmp(argv[arg], "-threads") == 0) {
-      threads = strtouint32(argv[++arg]);
+      nThreads = strtouint32(argv[++arg]);
+
+    } else if (strcmp(argv[arg], "-loadthreads") == 0) {
+      lThreads = strtouint32(argv[++arg]);
 
     } else if (strcmp(argv[arg], "-memory") == 0) {
-      memory = strtouint32(argv[++arg]);
+      G->maxMemory = strtodouble(argv[++arg]);
 
-    } else if (strcmp(argv[arg], "-dump") == 0) {
-      reportType = OP_DUMP;
+    } else if (strcmp(argv[arg], "-bed") == 0) {
+      G->reportType = lookupOp::opBED;
+
+    } else if (strcmp(argv[arg], "-bed-runs") == 0) {
+      G->reportType = lookupOp::opBED;
+      G->mergeBedRuns   = true;
+
+    } else if (strcmp(argv[arg], "-wig-count") == 0) {
+      G->reportType = lookupOp::opWIGcount;
+
+    } else if (strcmp(argv[arg], "-wig-depth") == 0) {
+      G->reportType = lookupOp::opWIGdepth;
 
     } else if (strcmp(argv[arg], "-existence") == 0) {
-      reportType = OP_EXISTENCE;
+      G->reportType = lookupOp::opExistence;
 
     } else if (strcmp(argv[arg], "-include") == 0) {
-      reportType = OP_INCLUDE;
+      G->reportType = lookupOp::opInclude;
 
     } else if (strcmp(argv[arg], "-exclude") == 0) {
-      reportType = OP_EXCLUDE;
+      G->reportType = lookupOp::opExclude;
+
+    } else if (strcmp(argv[arg], "-10x") == 0) {
+      G->is10x = true;
+
+    } else if (strcmp(argv[arg], "-estimate") == 0) {
+      G->doEstimate = true;
+
+    } else if (strcmp(argv[arg], "-V") == 0) {
+      G->showProgress = true;
+
+    } else if (strcmp(argv[arg], "-help") == 0) {
+      err.push_back(nullptr);
 
     } else {
       char *s = new char [1024];
       snprintf(s, 1024, "Unknown option '%s'.\n", argv[arg]);
       err.push_back(s);
     }
-
-    arg++;
   }
 
-  if ((seqName1 == NULL) && (seqName2 == NULL))
-    err.push_back("No input sequences (-sequence) supplied.\n");
-  if (inputDBname.size() == 0)
-    err.push_back("No query meryl database (-mers) supplied.\n");
-  if (reportType == OP_NONE)
-    err.push_back("No report-type (-existence, etc) supplied.\n");
+  //  Check for invalid usage.
+
+  G->checkInvalid(err);
 
   if (err.size() > 0) {
-    fprintf(stderr, "usage: %s <report-type> \\\n", argv[0]);
-    fprintf(stderr, "         -sequence <input1.fasta> [<input2.fasta>] \\\n");
-    fprintf(stderr, "         -output   <output1>      [<output2>]\n");
-    fprintf(stderr, "         -mers     <input1.meryl> [<input2.meryl>] [...] \\\n");
-    fprintf(stderr, "         -labels   <input1name>   [<input2name>]   [...]\n");
-    fprintf(stderr, "  Query the kmers in meryl database(s) <input.meryl> with the sequences\n");
-    fprintf(stderr, "  in <input.fasta>.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Multiple databases are supported.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Up to two inptu sequences are supported (only for -include / -exclude).\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Input files can be FASTA or FASTQ; uncompressed, gz, bz2 or xz compressed\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Output from each input is sent to the associated output file.  Files will be\n");
-    fprintf(stderr, "  compressed if the appropriate extension is supplied (gz, bz2 or xz).\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Each input database can be filtered by value.  More advanced filtering\n");
-    fprintf(stderr, "  requires a new database to be constructed using meryl.\n");
-    fprintf(stderr, "    -min   m    Ignore kmers with value below m\n");
-    fprintf(stderr, "    -max   m    Ignore kmers with value above m\n");
-    fprintf(stderr, "    -threads t  Number of threads to use when constructing lookup table.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Memory usage can be limited, within reason, by sacrificing kmer lookup\n");
-    fprintf(stderr, "  speed.  If the lookup table requires more memory than allowed, the program\n");
-    fprintf(stderr, "  exits with an error.\n");
-    fprintf(stderr, "    -memory m   Don't use more than m GB memory\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  Exactly one report type must be specified.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  -existence");
-    fprintf(stderr, "    Report a tab-delimited line for each sequence showing the number of kmers\n");
-    fprintf(stderr, "    in the sequence, in the database, and in both.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "    output:  seqName <tab> mersInSeq <tab> mersInDB <tab> mersInBoth\n");
-    fprintf(stderr, "      seqName    - name of the sequence\n");
-    fprintf(stderr, "      mersInSeq  - number of mers in the sequence\n");
-    fprintf(stderr, "      mersInDB   - number of mers in the meryl database\n");
-    fprintf(stderr, "      mersInBoth - number of mers in the sequence that are\n");
-    fprintf(stderr, "                   also in the database\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  -dump\n");
-    fprintf(stderr, "    Report a tab-delimited line reporting each kmer in the input sequences, in\n");
-    fprintf(stderr, "    order, annotated with the value of the kmer in the input database.  If the kmer\n");
-    fprintf(stderr, "    does not exist in the database its value will be reported as zero.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "    output:  seqName <tab> seqId <tab> seqPos <tab> exists <tab> fwd-mer <tab> fwd-val <tab> rev-mer <tab> rev-val\n");
-    fprintf(stderr, "      seqName    - name of the sequence this kmer is from\n");
-    fprintf(stderr, "      seqId      - numeric version of the seqName (0-based)\n");
-    fprintf(stderr, "      seqPos     - start position (0-based) of the kmer in the sequence\n");
-    fprintf(stderr, "      exists     - 'T' if the kmer exists in the database, 'F' if it does not\n");
-    fprintf(stderr, "      fwd-mer    - forward mer sequence\n");
-    fprintf(stderr, "      fwd-val    - value of the forward mer in the database\n");
-    fprintf(stderr, "      rev-mer    - reverse mer sequence\n");
-    fprintf(stderr, "      rev-val    - value of the reverse mer in the database\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  -include / -exclude\n");
-    fprintf(stderr, "    Extract sequences containing (-include) or not containing (-exclude) kmers in\n");
-    fprintf(stderr, "    any input database.  Output sequences are written in the same format as the input\n");
-    fprintf(stderr, "    sequences, with the number of kmers found added to the name.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "    If two input files are supplied, the corresponding sequences are treated as a pair.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "    output:  sequence given format (fasta or fastq) with the number of overlapping kmers appended\n");
-    fprintf(stderr, "             if pairs of sequences are given, R1 will be stdout and R2 be named as <output.r2>\n");
-    fprintf(stderr, "              <output.r2> will be automatically compressed if ends with .gz, .bz2, or xs\n");
-    fprintf(stderr, "      seqName    - name of the sequence this kmer is from\n");
-    fprintf(stderr, "      mersInBoth - number of mers in both sequence and in the database\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "  -exclude       Extract sequences *NOT containing* kmers in <input.meryl>.\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "     output:  sequence given format (fasta or fastq) without reads containing kmers\n");
-    fprintf(stderr, "              if pairs of sequences are given, R1 will be stdout and R2 be named as <output.r2>\n");
-    fprintf(stderr, "              <output.r2> will be automatically compressed if ends with .gz, .bz2, or xs\n");
-    fprintf(stderr, "         seqName    - name of the sequence this kmer is from\n");
-    fprintf(stderr, "\n");
+    switch (G->reportType) {
+      case lookupOp::opNone:          help(argv[0]);                 break;
+      case lookupOp::opEstimate:      help(argv[0]);                 break;
+      case lookupOp::opBED:           helpBED(argv[0]);              break;
+      case lookupOp::opWIGcount:      helpWIGcount(argv[0]);         break;
+      case lookupOp::opWIGdepth:      helpWIGdepth(argv[0]);         break;
+      case lookupOp::opExistence:     helpExistence(argv[0]);        break;
+      case lookupOp::opInclude:       helpIncludeExclude(argv[0]);   break;
+      case lookupOp::opExclude:       helpIncludeExclude(argv[0]);   break;
+    }
 
     for (uint32 ii=0; ii<err.size(); ii++)
       if (err[ii])
         fputs(err[ii], stderr);
 
-    exit(1);
+    return(1);
   }
 
-  omp_set_num_threads(threads);
+  if (nThreads == 0)   nThreads = getMaxThreadsAllowed();
+  if (lThreads == 0)   lThreads = nThreads;
 
-  //  Open the kmers, build a lookup table.
+  setNumThreads(lThreads);   //  Enable threads for loading data.
 
-  vector<merylExactLookup *>  kmerLookups;
+  double time0 = getTime();
 
-  for (uint32 ii=0; ii<inputDBname.size(); ii++) {
-    fprintf(stderr, "-- Loading kmers from '%s' into lookup table.\n", inputDBname[ii]);
+  G->initialize();
+  G->loadLookupTables();
+  G->openInputs();
+  G->openOutputs();
 
-    merylFileReader   *merylDB    = new merylFileReader(inputDBname[ii]);
-    merylExactLookup  *kmerLookup = new merylExactLookup(merylDB, memory, minV, maxV);
+  setNumThreads(nThreads);   //  Enable threads for computing results.
 
-    kmerLookups.push_back(kmerLookup);
+  double time1 = getTime();
 
-    if (kmerLookup->configure() == false)
-      exit(1);
-
-    kmerLookup->load();
-
-    delete merylDB;   //  Not needed anymore.
+  switch (G->reportType) {
+    case lookupOp::opNone:                                break;
+    case lookupOp::opEstimate:                            break;
+    case lookupOp::opBED:           dumpExistence(G);     break;
+    case lookupOp::opWIGcount:      dumpExistence(G);     break;
+    case lookupOp::opWIGdepth:      dumpExistence(G);     break;
+    case lookupOp::opExistence:     reportExistence(G);   break;
+    case lookupOp::opInclude:       filter(G);            break;
+    case lookupOp::opExclude:       filter(G);            break;
   }
 
-  //  Open input sequences.
+  double time2 = getTime();
 
-  dnaSeqFile  *seqFile1 = NULL;
-  dnaSeqFile  *seqFile2 = NULL;
+  delete G;
 
-  if (seqName1 != NULL) {
-    fprintf(stderr, "-- Opening sequences in '%s'.\n", seqName1);
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Bye!  (%.0f seconds to initialize and %0.f seconds to compute)\n",
+          time1-time0, time2-time1);
 
-    seqFile1 = new dnaSeqFile(seqName1);
+  return(0);
+}
+
+
+char const *
+makeString(char const *t, char const *l) {
+  char   *s = new char [1024];
+  sprintf(s, t, l);
+  return(s);
+}
+
+void
+lookupGlobal::checkInvalid(std::vector<char const *> &err) {
+
+  //  If there is no report type, we can skip all the other checks.
+
+  if ((doEstimate == true) &&
+      (reportType == lookupOp::opNone))
+    reportType = lookupOp::opEstimate;
+
+  if (reportType == lookupOp::opNone) {
+    err.push_back("No report-type (-bed, -wig-count, -wig-depth, -existence, -include, -exclude) supplied.\n");
+    return;
   }
 
-  if (seqName2 != NULL) {
-    fprintf(stderr, "-- Opening sequences in '%s'.\n", seqName2);
+  //  Everybody needs at least one input, one database, and one output.
 
-    seqFile2 = new dnaSeqFile(seqName2);
+  if ((reportType != lookupOp::opEstimate) &&
+      (seqName1 == nullptr))
+    err.push_back("No input sequences (-sequence) supplied.\n");
+
+  if (lookupDBname.size() == 0)
+    err.push_back("No meryl database (-mers) supplied.\n");
+
+  if ((reportType != lookupOp::opEstimate) &&
+      (outName1 == nullptr))
+    err.push_back("No output file (-output) supplied.\n");
+
+  //  Only include/exclude can take a second input.
+
+  if ((reportType != lookupOp::opInclude) &&
+      (reportType != lookupOp::opExclude)) {
+    if (seqName2 != nullptr)
+      err.push_back(makeString("Only one input sequence (-sequence) supported for %s.\n", toString(reportType)));
+
+    if (outName2 != nullptr)
+      err.push_back(makeString("Only one output file (-output) supported for %s.\n", toString(reportType)));
   }
 
-  //  Open output writers.
+  //  If include/exclude, be sure there is an output for the second input,
+  //  and that there is only one input database.
 
-  compressedFileWriter  *outFile1 = (outName1 == NULL) ? NULL : new compressedFileWriter(outName1);
-  compressedFileWriter  *outFile2 = (outName2 == NULL) ? NULL : new compressedFileWriter(outName2);
+  if ((reportType == lookupOp::opInclude) ||
+      (reportType == lookupOp::opExclude)) {
+    if ((seqName2 != nullptr) &&
+        (outName2 == nullptr))
+      err.push_back("No second output file (-output) supplied for second input (-input) file.\n");
 
-  //  Do something.
+    if ((seqName2 == nullptr) &&
+        (outName2 != nullptr))
+      err.push_back("No second input file (-input) supplied for second output (-output) file.\n");
 
-  if (reportType == OP_DUMP)
-    dumpExistence(seqFile1, outFile1, kmerLookups, inputDBlabel);
+    if (lookupDBname.size()  > 1)
+      err.push_back(makeString("Only one meryl database (-mers) supported for %s.\n", toString(reportType)));
+  }
 
-  if (reportType == OP_EXISTENCE)
-    reportExistence(seqFile1, outFile1, kmerLookups, inputDBlabel);
+  //  Reject labels for things that don't use them.
 
-  if (reportType == OP_INCLUDE)
-    filter(seqFile1, seqFile2, outFile1, outFile2, kmerLookups, true);
-
-  if (reportType == OP_EXCLUDE)
-    filter(seqFile1, seqFile2, outFile1, outFile2, kmerLookups, false);
-
-  //  Done!
-
-  delete seqFile1;
-  delete seqFile2;
-
-  delete outFile1;
-  delete outFile2;
-
-  for (uint32 ii=0; ii<kmerLookups.size(); ii++)
-    delete kmerLookups[ii];
-
-  fprintf(stderr, "Bye!\n");
-
-  exit(0);
+  if (((reportType == lookupOp::opWIGcount) ||
+       (reportType == lookupOp::opWIGdepth) ||
+       (reportType == lookupOp::opExistence) ||
+       (reportType == lookupOp::opInclude) ||
+       (reportType == lookupOp::opExclude)) && (lookupDBlabel.size() > 0))
+    err.push_back(makeString("Labels (-labels) not supported for %s.\n", toString(reportType)));
 }

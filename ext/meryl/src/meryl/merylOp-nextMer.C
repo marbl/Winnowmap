@@ -17,7 +17,7 @@
  */
 
 #include "meryl.H"
-
+#include <cmath>
 
 
 void
@@ -47,6 +47,19 @@ merylOperation::findSumCount(void) {
     _value += _actCount[ii];
 }
 
+
+void
+merylOperation::subtractCount(void) {
+  _value = _actCount[0];
+  for (uint32 ii=1; ii<_actLen; ii++) {
+    if ( _value > _actCount[ii] )
+      _value -= _actCount[ii];
+    else {
+      _value = 0;
+      return;
+    }
+  }
+}
 
 
 void
@@ -185,7 +198,7 @@ merylOperation::doCounting(void) {
                     wData,
                     wDataMask);
 
-  omp_set_num_threads(_maxThreads);
+  setNumThreads(_maxThreads);
 
   if (doSimple) {
     fprintf(stderr, "Start counting with SIMPLE method.\n");
@@ -209,7 +222,7 @@ merylOperation::doCounting(void) {
   //   - add the counted output as an input
 
   if (_outputO)
-    strncpy(name, _outputO->filename(), FILENAME_MAX);   //  know which input to open later.
+    strncpy(name, _outputO->filename(), FILENAME_MAX + 1);   //  know which input to open later.
 
   delete _outputO;
   _outputO = NULL;
@@ -526,6 +539,16 @@ merylOperation::nextMer(void) {
       else
         _value = _actCount[0] / _mathConstant;
       break;
+    case opDivideRound:
+      if (_mathConstant == 0)
+        _value = 0;             //  DIVIDE BY ZERO!
+      else {
+        if (_actCount[0] < _mathConstant)
+          _value = 1;
+        else
+          _value = round (_actCount[0] / (double) _mathConstant);
+      }
+      break;
 
     case opModulo:
       if (_mathConstant == 0)
@@ -568,6 +591,15 @@ merylOperation::nextMer(void) {
     case opIntersectSum:                    //  Intersect, sum all counts
       if (_actLen == _inputs.size())
         findSumCount();
+      break;
+
+    case opSubtract:
+      if (_actIndex[0] == 0) {
+        if (_actLen == 1)
+          _value = _actCount[0];
+        else if (_actLen > 1)
+          subtractCount();
+      }
       break;
 
     case opDifference:

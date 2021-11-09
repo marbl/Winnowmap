@@ -39,7 +39,7 @@ my $verFile  = shift @ARGV;
 
 my $label    = "snapshot";      #  If not 'release' print this in the version output.
 my $major    = "1";             #  Bump before release.
-my $minor    = "0";             #  Bump before release.
+my $minor    = "3";             #  Bump before release.
 
 my $branch   = "master";
 my $version  = "v$major.$minor";
@@ -87,7 +87,12 @@ if (-d "../.git") {
 
             $version = "v$major.$minor";
         } else {
-            die "Failed to parse describe string '$_'.\n";
+            $major   = "0";
+            $minor   = "0";
+            $commits = "0";
+            $hash1   = $_;
+
+            $version = "v$major.$minor";
         }
     }
     close(F);
@@ -163,14 +168,12 @@ elsif ($cwd =~ m/$modName-master\/src/) {
 #  Report what we found.  This is really for the gmake output.
 
 if (defined($commits)) {
-    print STDERR "Building $label $version +$commits changes (r$revCount $hash1) ($dirty)\n";
+    print "\$(info Building $label $version +$commits changes (r$revCount $hash1) ($dirty))\n";
     foreach my $s (@submodules) {
-        print STDERR "         $s\n";
+        print "\$(info \$(space)         $s)\n";
     }
-    print STDERR "\n";
 } else {
-    print STDERR "Building $label $version\n";
-    print STDERR "\n";
+    print "\$(info Building $label $version)\n";
 }
 
 #  Dump a new file, but don't overwrite the original.

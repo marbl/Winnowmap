@@ -437,7 +437,7 @@ void edlibAlignmentToStrings(const unsigned char* alignment, int alignmentLength
 }
 
 void
-edlibAlignmentToStrings(EdlibAlignResult result,
+edlibAlignmentToStrings(EdlibAlignResult const &result,
                         const char *qry, const int qryLength,
                         const char *tgt, const int tgtLength,
                         char *qryAln,

@@ -71,10 +71,9 @@ readBuffer::initialize(const char *filename, uint64 bufferMax) {
   _ignoreCR    = true;
 
   _bufferBgn   = 0;
-  _bufferLen   = 0;
 
   _bufferPos   = 0;
-
+  _bufferLen   = 0;
   _bufferMax   = (bufferMax == 0) ? 32 * 1024 : bufferMax;
   _buffer      = new char [_bufferMax + 1];
 
@@ -111,10 +110,9 @@ readBuffer::readBuffer(FILE *file, uint64 bufferMax) {
   _ignoreCR    = true;
 
   _bufferBgn   = 0;
-  _bufferLen   = 0;
 
   _bufferPos   = 0;
-
+  _bufferLen   = 0;
   _bufferMax   = (bufferMax == 0) ? 32 * 1024 : bufferMax;
   _buffer      = new char [_bufferMax + 1];
 
@@ -144,17 +142,17 @@ readBuffer::~readBuffer() {
 
 
 void
-readBuffer::fillBuffer(uint64 extra) {
+readBuffer::fillBuffer(void) {
 
   //  If there is still stuff in the buffer, no need to fill.
 
-  if (_bufferPos + extra < _bufferLen)
+  if (_bufferPos < _bufferLen)
     return;
 
   _bufferBgn += _bufferLen;
-  _bufferLen  = 0;
 
   _bufferPos  = 0;
+  _bufferLen  = 0;
 
   assert(_filePos == _bufferBgn);
 
@@ -394,7 +392,7 @@ readBuffer::readIFFchunk(char*name, uint8 *&data, uint32 &dataLen, uint32 &dataM
 
   //  Allocate space for the data.
 
-  resizeArray(data, 0, dataMax, dataLen, resizeArray_doNothing);
+  resizeArray(data, 0, dataMax, dataLen);
 
   //  Copy the data to 'data'.
 

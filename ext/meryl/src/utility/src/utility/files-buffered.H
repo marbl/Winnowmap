@@ -87,7 +87,7 @@ public:
   const char          *filename(void) { return(_filename); };
 
 private:
-  void                 fillBuffer(uint64 extra=0);
+  void                 fillBuffer(void);
   void                 init(int fileptr, const char *filename, uint64 bufferMax);
 
   char                _filename[FILENAME_MAX+1];
@@ -102,10 +102,9 @@ private:
   bool                _ignoreCR;    //  Ignore blasted DOS CR letters in read() and readuntil().
 
   uint64              _bufferBgn;   //  File position where this buffer is from.
-  uint64              _bufferLen;   //  Length of the valid data in the buffer.
 
   uint64              _bufferPos;   //  Position in the buffer we're at.
-
+  uint64              _bufferLen;   //  Length of the valid data in the buffer.
   uint64              _bufferMax;   //  Size of _buffer allocation.
   char               *_buffer;      //  Data!
 };

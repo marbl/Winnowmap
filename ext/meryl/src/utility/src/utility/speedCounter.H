@@ -38,7 +38,7 @@ public:
   void   enableLiner(void)   { _line = true; };
 
   bool   tick(void) {
-    if (_enabled && ((++_count & _freq) == uint64ZERO)) {
+    if (_enabled && ((++_count & _freq) == 0)) {
       double  v = _count / _unit;
       if (_spin) fputs(_spinr[_draws %  4], stderr);
       if (_line) fputs(_liner[_draws % 19], stderr);
@@ -55,7 +55,7 @@ public:
       return(false);
 
     _count += increment;
-    if ((_count & _freq) == uint64ZERO) {
+    if ((_count & _freq) == 0) {
       double  v = _count / _unit;
       if (_spin) fputs(_spinr[_draws %  4], stderr);
       if (_line) fputs(_liner[_draws % 19], stderr);

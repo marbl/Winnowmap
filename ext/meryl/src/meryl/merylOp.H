@@ -46,6 +46,7 @@ enum merylOp {
   opDecrease,
   opMultiply,
   opDivide,
+  opDivideRound,
   opModulo,
 
   opUnion,
@@ -60,6 +61,8 @@ enum merylOp {
 
   opDifference,
   opSymmetricDifference,
+
+  opSubtract,	// if count(a) >= count(b), keep count(a)-count(b). else, discard.
 
   opHistogram,
   opStatistics,
@@ -144,6 +147,9 @@ public:
   void    setMemoryLimit(uint64 m)             { _maxMemory    = m; };
   void    setThreadLimit(uint32 t)             { _maxThreads   = t; };
 
+  uint64  getMemoryLimit(void)                 { return(_maxMemory);  };
+  uint32  getThreadLimit(void)                 { return(_maxThreads); };
+
   bool    isCounting(void) {
     return((_operation == opCount)        ||
            (_operation == opCountForward) ||
@@ -154,17 +160,21 @@ public:
     return(isCounting() == false);
   };
 
-  bool    needsParameter(void) {
+  bool    needsThreshold(void) {
     return((_operation == opLessThan)     ||
            (_operation == opGreaterThan)  ||
            (_operation == opAtLeast)      ||
            (_operation == opAtMost)       ||
            (_operation == opEqualTo)      ||
-           (_operation == opNotEqualTo)   ||
-           (_operation == opIncrease)     ||
+           (_operation == opNotEqualTo));
+  };
+
+  bool    needsConstant(void) {
+    return((_operation == opIncrease)     ||
            (_operation == opDecrease)     ||
            (_operation == opMultiply)     ||
            (_operation == opDivide)       ||
+           (_operation == opDivideRound)  ||
            (_operation == opModulo));
   };
 
@@ -227,8 +237,9 @@ private:
   void    findMinCount(void);
   void    findMaxCount(void);
   void    findSumCount(void);
+  void    subtractCount(void);
 
-  vector<merylInput *>           _inputs;
+  std::vector<merylInput *>      _inputs;
   bool                           _isMultiSet = false;
 
   merylOp                        _operation = opNothing;

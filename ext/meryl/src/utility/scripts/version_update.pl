@@ -44,6 +44,8 @@ my $minor    = "0";             #  Bump before release.
 my $branch   = "master";
 my $version  = "v$major.$minor";
 
+my @submodules;
+
 my $commits  = undef;
 my $hash1    = undef;          #  This from 'git describe'
 my $hash2    = undef;          #  This from 'git rev-list'
@@ -85,7 +87,12 @@ if (-d "../.git") {
 
             $version = "v$major.$minor";
         } else {
-            die "Failed to parse describe string '$_'.\n";
+            $major   = "0";
+            $minor   = "0";
+            $commits = "0";
+            $hash1   = $_;
+
+            $version = "v$major.$minor";
         }
     }
     close(F);
@@ -132,6 +139,16 @@ if (-d "../.git") {
         $label   = "branch";
         $version = $branch;
     }
+
+
+    #  Get information on any submodules here.
+    open(F, "git submodule status |");
+    while (<F>) {
+        if (m/^(.*)\s+(.*)\s+\((.*)\)$/) {
+            push @submodules, "$2 $3 $1";
+        }
+    }
+    close(F);
 }
 
 
@@ -151,11 +168,12 @@ elsif ($cwd =~ m/$modName-master\/src/) {
 #  Report what we found.  This is really for the gmake output.
 
 if (defined($commits)) {
-    print STDERR "Building $label $version +$commits changes (r$revCount $hash1) ($dirty)\n";
-    print STDERR "\n";
+    print "\$(info Building $label $version +$commits changes (r$revCount $hash1) ($dirty))\n";
+    foreach my $s (@submodules) {
+        print "\$(info \$(space)         $s)\n";
+    }
 } else {
-    print STDERR "Building $label $version\n";
-    print STDERR "\n";
+    print "\$(info Building $label $version)\n";
 }
 
 #  Dump a new file, but don't overwrite the original.

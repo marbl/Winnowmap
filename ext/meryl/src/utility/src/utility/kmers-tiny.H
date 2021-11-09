@@ -28,8 +28,11 @@
 
 typedef uint128    kmdata;   //  128 bits of kmer data
 typedef uint32     kmpref;   //   32 bits of kmer prefix == 6 bits file prefix, 6 (default) suffix prefix
-typedef uint32     kmvalu;   //   64 bits of kmer count
+typedef uint32     kmvalu;   //   32 bits of kmer value
 typedef uint64     kmcolo;   //   64 bits of kmer color
+
+constexpr kmvalu   kmvalumax = uint32max;
+constexpr kmcolo   kmcolomax = uint64max;
 
 
 class  kmerTiny {
@@ -67,6 +70,15 @@ public:
   //  to make space for the new base.  Unlike the 'standard' two-bit encoding,
   //  these encode bases as A=00, C=01, G=11, T=10.
   //
+  //       +---------+-- upper/lower case bit
+  //       |         |
+  //    A 1000001 a 1100001 == 00
+  //    C 1000011 c 1100011 == 01
+  //    G 1000111 g 1100111 == 11
+  //    T 1010100 t 1110100 == 10
+  //                    ||
+  //                    ++-- bits used for 2-bit encoding
+  //
   void        addR(kmdata base)       { _mer  = (((_mer << 2) & _fullMask) | (((base >> 1) & 0x03llu)          )              );  };
   void        addL(kmdata base)       { _mer  = (((_mer >> 2) & _leftMask) | (((base >> 1) & 0x03llu) ^ 0x02llu) << _leftShift);  };
 
@@ -78,16 +90,16 @@ public:
 
     //  Complement the bases
 
-    mer ^= uint128NUMBER(0xaaaaaaaaaaaaaaaallu, 0xaaaaaaaaaaaaaaaallu);
+    mer ^= build_uint128(0xaaaaaaaaaaaaaaaallu, 0xaaaaaaaaaaaaaaaallu);
 
     //  Reverse the mer
 
-    mer = ((mer >>  2) & uint128NUMBER(0x3333333333333333llu, 0x3333333333333333llu)) | ((mer <<  2) & uint128NUMBER(0xccccccccccccccccllu, 0xccccccccccccccccllu));
-    mer = ((mer >>  4) & uint128NUMBER(0x0f0f0f0f0f0f0f0fllu, 0x0f0f0f0f0f0f0f0fllu)) | ((mer <<  4) & uint128NUMBER(0xf0f0f0f0f0f0f0f0llu, 0xf0f0f0f0f0f0f0f0llu));
-    mer = ((mer >>  8) & uint128NUMBER(0x00ff00ff00ff00ffllu, 0x00ff00ff00ff00ffllu)) | ((mer <<  8) & uint128NUMBER(0xff00ff00ff00ff00llu, 0xff00ff00ff00ff00llu));
-    mer = ((mer >> 16) & uint128NUMBER(0x0000ffff0000ffffllu, 0x0000ffff0000ffffllu)) | ((mer << 16) & uint128NUMBER(0xffff0000ffff0000llu, 0xffff0000ffff0000llu));
-    mer = ((mer >> 32) & uint128NUMBER(0x00000000ffffffffllu, 0x00000000ffffffffllu)) | ((mer << 32) & uint128NUMBER(0xffffffff00000000llu, 0xffffffff00000000llu));
-    mer = ((mer >> 64) & uint128NUMBER(0x0000000000000000llu, 0xffffffffffffffffllu)) | ((mer << 64) & uint128NUMBER(0xffffffffffffffffllu, 0x0000000000000000llu));
+    mer = ((mer >>  2) & build_uint128(0x3333333333333333llu, 0x3333333333333333llu)) | ((mer <<  2) & build_uint128(0xccccccccccccccccllu, 0xccccccccccccccccllu));
+    mer = ((mer >>  4) & build_uint128(0x0f0f0f0f0f0f0f0fllu, 0x0f0f0f0f0f0f0f0fllu)) | ((mer <<  4) & build_uint128(0xf0f0f0f0f0f0f0f0llu, 0xf0f0f0f0f0f0f0f0llu));
+    mer = ((mer >>  8) & build_uint128(0x00ff00ff00ff00ffllu, 0x00ff00ff00ff00ffllu)) | ((mer <<  8) & build_uint128(0xff00ff00ff00ff00llu, 0xff00ff00ff00ff00llu));
+    mer = ((mer >> 16) & build_uint128(0x0000ffff0000ffffllu, 0x0000ffff0000ffffllu)) | ((mer << 16) & build_uint128(0xffff0000ffff0000llu, 0xffff0000ffff0000llu));
+    mer = ((mer >> 32) & build_uint128(0x00000000ffffffffllu, 0x00000000ffffffffllu)) | ((mer << 32) & build_uint128(0xffffffff00000000llu, 0xffffffff00000000llu));
+    mer = ((mer >> 64) & build_uint128(0x0000000000000000llu, 0xffffffffffffffffllu)) | ((mer << 64) & build_uint128(0xffffffffffffffffllu, 0x0000000000000000llu));
 
     //  Shift and mask out the bases not in the mer
 
@@ -138,7 +150,7 @@ public:
     kmdata  mask = _mer;
 
     mask >>= 1;
-    mask  &= uint128NUMBER(0x5555555555555555llu, 0x5555555555555555llu);
+    mask  &= build_uint128(0x5555555555555555llu, 0x5555555555555555llu);
 
     fmer ^= mask;      //  Convert from ACTG ordering to ACGT ordering.
     rmer ^= mask;
@@ -155,10 +167,12 @@ public:
     return(_mer);
   };
 
-  operator uint64 () const {
-    assert(0);
-    return(_mer);
-  };
+  operator uint64 () const = delete;   //  Explicitly fail of someone tries to convert us to an integer
+  operator  int64 () const = delete;   //  instead of to a kmdata.  Without these, a cast to, say, uint64
+  operator uint32 () const = delete;   //  would be first convert to kmdata (uint128) then down to uint64.
+  operator  int32 () const = delete;   //  With these, you'll either get a compile-time error (because
+  operator uint16 () const = delete;   //  these are private) or link time error (because they're not
+  operator  int16 () const = delete;   //  defined.
 
   void     setPrefixSuffix(kmpref prefix, kmdata suffix, uint32 width) {
     _mer   = prefix;

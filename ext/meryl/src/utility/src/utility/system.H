@@ -40,6 +40,34 @@ uint64   getPhysicalMemorySize(void);
 
 uint64   getPageSize(void);
 
+uint64   getMaxMemoryAllowed(void);
+
+//
+//  getMaxThreadsAllowed() returns the minimum value of 'limit' and any of a
+//  variety of environment variables specifying a thread limit.  It does NOT
+//  configure OpenMP to use that many threads.
+//
+//  AS_configure() (runtime.H) calls:
+//    setNumThreads(getMaxThreadsAllowed(limit))
+//  User code is then free to parse args and call setNumThreads() to change
+//  the number of threads to whatever is specified on the command line.
+//
+//  getNumThreads() and getNumThreadsActive() return the current limit on the
+//  number of threads and the current number of threads running, respectively.
+//
+//  setNumThreads() will configure OpenMP to use at most the supplied number
+//  of threads.  It returns this number.
+//
+//  getThreadNum() returns 0 .. numThreadsActive-1 for each thread.
+//
+uint32   getMaxThreadsAllowed(uint32 limit=uint32max);
+uint32   getNumThreads(void);
+uint32   getNumThreadsActive(void);
+
+uint32   getThreadNum(void);
+
+uint32   setNumThreads(char const *opt);
+uint32   setNumThreads(uint32 thr);
 
 void  AS_UTL_catchCrash(int sig_num, siginfo_t *info, void *ctx);
 

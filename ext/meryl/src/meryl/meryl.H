@@ -28,7 +28,6 @@
 #include <stack>
 #include <vector>
 #include <algorithm>
-using namespace std;
 
 
 class merylCommandBuilder {
@@ -46,7 +45,7 @@ public:
   bool    isPrinter(void);
 
   bool    isMerylInput(void);
-  bool    isCanuInput(vector<char *> &err);
+  bool    isCanuInput(std::vector<char *> &err);
   bool    isSequenceInput(void);
 
   void    finalize(void);
@@ -98,12 +97,11 @@ private:
   //
   //  _opList is a list of operations.
 
-  stack <merylOperation *>   _opStack;
-  vector<merylOperation *>   _opList;
-  merylOperation           **_thList[64] = { nullptr };   //  Mirrors opList
+  std::stack <merylOperation *>   _opStack;
+  std::vector<merylOperation *>   _opList;
+  merylOperation                **_thList[64] = { nullptr };   //  Mirrors opList
 
-  vector<uint32>             _opRoot;
-
+  std::vector<uint32>             _opRoot;
 };
 
 

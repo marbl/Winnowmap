@@ -34,9 +34,9 @@ main(int argc, char **argv) {
   uint64  memLimit = UINT64_MAX;
   uint64  memUsed  = 0;
 
-  argc = AS_configure(argc, argv);
+  argc = AS_configure(argc, argv, 1);
 
-  vector<char *>  err;
+  std::vector<char *>  err;
   for (int32 arg=1; arg < argc; arg++) {
     if      (strcmp(argv[arg], "-k") == 0) {
       kSize = strtouint32(argv[++arg]);
@@ -152,7 +152,7 @@ main(int argc, char **argv) {
 
   fprintf(stderr, "-- Sorting %lu kmers.\n", kmersLen);
 
-  sort(kmers, kmers + kmersLen);
+  std::sort(kmers, kmers + kmersLen);
 
   //  Scan, count and output stuff.
 

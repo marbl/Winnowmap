@@ -36,8 +36,8 @@ class parasailLib {
 public:
   parasailLib(int32 match     =  1,    //  All these must specified as additive scores.
               int32 mismatch  = -2,    //  
-              int32 gapopen   = -2,    //  'gapopen' is the score for a single gap;
-              int32 gapextend = -1);   //  two gaps will score as 'gapopen + gapextend'.
+              int32 gapopen   =  2,    //  'gapopen' is the penalty for a single gap;
+              int32 gapextend =  1);   //  two gaps will score as 'gapopen + gapextend'.
   ~parasailLib();
 
   void     setMatchScores(int8 match, int8 mismatch);
@@ -49,13 +49,13 @@ public:
   bool     alignDovetail(char const *seqA, uint32 lenA,
                          char const *seqB, uint32 lenB, bool verbose=false) {
     return(align(seqA, lenA, 0, lenA,
-                 seqB, lenB, 0, lenB, verbose, parasail_sg_qb_de_trace_striped_32));
+                 seqB, lenB, 0, lenB, verbose, parasail_sg_qb_de_trace /*_striped_32*/));
   };
 
   bool     alignDovetail(char const *seqA, uint32 lenA, int32 bgnA, int32 endA,
                          char const *seqB, uint32 lenB, int32 bgnB, int32 endB, bool verbose=false) {
     return(align(seqA, lenA, bgnA, endA,
-                 seqB, lenB, bgnB, endB, verbose, parasail_sg_qb_de_trace_striped_32));
+                 seqB, lenB, bgnB, endB, verbose, parasail_sg_qb_de_trace /*_striped_32*/));
   };
 
   //  Align with free gaps on either end of s2.

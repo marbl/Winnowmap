@@ -23,11 +23,14 @@
 void
 merylFileWriter::initialize(uint32 prefixSize, bool isMultiSet) {
 
+  //  Fail if we're already initialized and asked to change the prefix size.
+  //  But just ignore the re-init request if the prefix size is the same.
+
   if ((_initialized == true) &&
       (prefixSize != _prefixSize))
     fprintf(stderr, "merylFileWriter::initialize()-- asked to initialize with different prefixSize (new %u existing %u).\n", prefixSize, _prefixSize), exit(1);
 
-  if (_initialized == true)    //  Nothing to do if we're already done.
+  if (_initialized == true)
     return;
 
   //  If the global mersize isn't set, we're hosed.
@@ -54,12 +57,12 @@ merylFileWriter::initialize(uint32 prefixSize, bool isMultiSet) {
       _prefixSize = 12;  //max((uint32)8, 2 * kmer::merSize() / 3);
 
     _suffixSize         = 2 * kmer::merSize() - _prefixSize;
-    _suffixMask         = uint64MASK(_suffixSize);
+    _suffixMask         = buildLowBitMask<kmdata>(_suffixSize);
 
     //  Decide how many files to write.  We can make up to 2^32 files, but will
     //  run out of file handles _well_ before that.  For now, limit to 2^6 = 64 files.
 
-    _numFilesBits       = 6;  //(_prefixSize < 7) ? _prefixSize : 6;
+    _numFilesBits       = 6;
     _numBlocksBits      = _prefixSize - _numFilesBits;
 
     _numFiles           = (uint64)1 << _numFilesBits;
@@ -273,7 +276,7 @@ merylFileWriter::writeBlockToFile(FILE            *datFile,
 
   //  Save the index entry.
 
-  uint64  block = blockPrefix & uint64MASK(_numBlocksBits);
+  uint64  block = blockPrefix & buildLowBitMask<uint64>(_numBlocksBits);
 
   datFileIndex[block].set(blockPrefix, datFile, nKmers);
 

@@ -104,6 +104,7 @@ explicitCallParasail(char const *seqA, uint32 lenA,
   printCigar(result, matrix, seqA, lenA, seqB, lenB);
   parasail_result_free(result);
 
+#if 0
   fprintf(stderr, "\n--\n");
   fprintf(stderr, "vector\n");
   bgn = getTime();
@@ -135,7 +136,7 @@ explicitCallParasail(char const *seqA, uint32 lenA,
   fprintf(stderr, "%.3f seconds  score %d\n", getTime() - bgn, parasail_result_get_score(result));
   printCigar(result, matrix, seqA, lenA, seqB, lenB);
   parasail_result_free(result);
-
+#endif
 
   parasail_matrix_free(matrix);
 }

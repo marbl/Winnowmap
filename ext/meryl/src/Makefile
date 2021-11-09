@@ -27,7 +27,14 @@
 #       instances of "$" within them need to be escaped with a second "$" to
 #       accomodate the double expansion that occurs when eval is invoked.
 
-#  Before doing ANYTHING, initialize submodules.
+#  Before doing ANYTHING, initialize submodules...if the version of
+#  git is compatible.
+gitv := $(shell git --version | cut -d\  -f 3 | cut -c 1)
+ifeq (1, $(gitv))
+  gitv := $(shell git --version | cut -d\  -f 3)
+  $(error git '$(shell which git)' version '$(gitv)' too old; at least version 2.12 is required)
+endif
+
 ifeq ($(wildcard utility/src/Makefile), )
   $(info $(shell git submodule update --init utility))
   $(info $(space))
@@ -343,8 +350,9 @@ DIR_STACK :=
 INCDIRS :=
 TGT_STACK :=
 
-# Discover our OS and architecture.  These are used to set the BUILD_DIR and TARGET_DIR to
-# something more useful than 'build' and '.'.
+# Discover our OS and architecture.  These were previously used to set
+# BUILD_DIR and TARGET_DIR to allow multi-platform builds.  DESTDIR will do
+# that for us too.
 
 OSTYPE      := $(shell echo `uname`)
 OSVERSION   := $(shell echo `uname -r`)
@@ -369,6 +377,18 @@ ifeq (${OSTYPE}, SunOS)
   endif
 endif
 
+#  Set paths for building and installing.  If DESTDIR doesn't exist, use the
+#  directory just above us.
+
+ifeq "$(strip ${DESTDIR})" ""
+  BUILD_DIR    := $(realpath ..)/build/obj
+  TARGET_DIR   := $(realpath ..)/build
+else
+  BUILD_DIR    := $(DESTDIR)/canu/build/obj
+  TARGET_DIR   := $(DESTDIR)/canu/build
+endif
+
+#
 #  Set compiler and flags based on discovered hardware
 #
 #  By default, debug symbols are included in all builds (even optimized).
@@ -384,7 +404,6 @@ endif
 #
 #  BUILDJEMALLOC will enable jemalloc library support.
 #
-
 
 ifeq ($(origin CXXFLAGS), undefined)
   ifeq ($(BUILDOPTIMIZED), 1)
@@ -413,7 +432,7 @@ ifeq ($(origin CXXFLAGS), undefined)
   CXXFLAGS += -Wno-unused-variable
   CXXFLAGS += -Wno-deprecated-declarations
   CXXFLAGS += -Wno-format-truncation
-  CXXFLAGS += -std=c++11
+  CXXFLAGS += -std=c++17
 else
   CXXFLAGSUSER := ${CXXFLAGS}
 endif
@@ -437,44 +456,27 @@ endif
 #  So, we require gcc7 (from MacPorts) or gcc8 (from hommebrew).
 #
 #  If from MacPorts:
-#    port install gcc7
-#    port select gcc mp-gcc7
+#    port install gcc9
+#    port select gcc mp-gcc9
 #
 #  If CC is set to 'cc', the GNU make default, we'll automagically search for other
-#  versions and use those if found, preferring gcc7 over gcc8.
+#  versions and use those if found.
 #
-#  There' definitely a clever way to do this with 'foreach', but my Make is lacking.
-#
+
+define TEST_COMPILER
+  ifeq ($${CC}, cc)
+    CCTEST  := $$(shell echo `which gcc-${1}`)
+    CXXTEST := $$(shell echo `which g++-${1}`)
+
+    ifdef CXXTEST
+      CC  := $${CCTEST}
+      CXX := $${CXXTEST}
+    endif
+  endif
+endef
+
 ifeq (${OSTYPE}, Darwin)
-  ifeq ($(CC), cc)
-    CC7    := $(shell echo `which gcc-mp-7`)
-    CXX7   := $(shell echo `which g++-mp-7`)
-
-    ifdef CXX7
-      CC  := $(CC7)
-      CXX := $(CXX7)
-    endif
-  endif
-
-  ifeq ($(CC), cc)
-    CC8    := $(shell echo `which gcc-7`)
-	  CXX8   := $(shell echo `which g++-7`)
-
-    ifdef CXX8
-      CC  := $(CC8)
-      CXX := $(CXX8)
-    endif
-  endif
-
-  ifeq ($(CC), cc)
-    CC8    := $(shell echo `which gcc-8`)
-	  CXX8   := $(shell echo `which g++-8`)
-
-    ifdef CXX8
-      CC  := $(CC8)
-      CXX := $(CXX8)
-    endif
-  endif
+  $(foreach suffix,mp-9 9  mp-8 8  mp-7 7,$(eval $(call TEST_COMPILER,${suffix})))
 
   ifneq ($(shell echo `$(CXX) --version 2>&1 | grep -c clang`), 0)
      CPATH := $(shell echo `which $(CXX)`)
@@ -514,9 +516,12 @@ ifeq (${CANU_BUILD_ENV}, ports)
 
 else
 
-  CC       ?= gcc6
-  CXX      ?= g++6
-  CCLIB    ?= -rpath /usr/local/lib/gcc6
+  # Ignore the gmake default 'c++' and force g++9.
+	ifeq ($(origin CXX), default)
+    CC    = gcc9
+    CXX   = g++9
+    CCLIB = -rpath /usr/local/lib/gcc9
+  endif
 
   #  GCC
   CXXFLAGS  += -I/usr/local/include -pthread -fopenmp -fPIC
@@ -683,11 +688,11 @@ $(foreach TGT,${ALL_TGTS},\
 #  Makefile processed.  Regenerate the version number file, make some
 #  directories, and report that we're starting the build.
 
-$(shell ../scripts/version_update.pl meryl utility/src/utility/version.H)
+$(eval $(shell ../scripts/version_update.pl meryl utility/src/utility/version.H))
 
 $(shell mkdir -p ${TARGET_DIR}/bin)
 
-$(info For '${OSTYPE}' '${OSVERSION}' as '${MACHINETYPE}' into '${DESTDIR}${PREFIX}/$(OSTYPE)-$(MACHINETYPE)/{bin,obj}'.)
+$(info For '${OSTYPE}' '${OSVERSION}' as '${MACHINETYPE}' into '${TARGET_DIR}/{bin,obj}'.)
 $(info Using '$(shell which ${CXX})' version '${GXX_VV}'.)
 ifneq ($(origin CXXFLAGSUSER), undefined)
 $(info Using user-supplied CXXFLAGS '${CXXFLAGSUSER}'.)

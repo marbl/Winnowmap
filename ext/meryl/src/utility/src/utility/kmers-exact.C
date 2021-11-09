@@ -22,94 +22,173 @@
 #include <vector>
 #include <algorithm>
 
-using namespace std;
-
-
-//  If set, allocate another (large) array to verify that there are no holes in the
-//  data array.  Holes would lead to false positives.
-//
-#undef  VERIFY_SUFFIX_END
-
-
-
-
-
-double
-bitsToGB(uint64 bits) {
-  return(bits / 8 / 1024.0 / 1024.0 / 1024.0);
-}
-
-double
-bitsToMB(uint64 bits) {
-  return(bits / 8 / 1024.0 / 1024.0);
-}
-
+//  Some sanity checking.
+#undef  TEST_MAXP
+#undef  CHECK_POINTERS
+#undef  CHECK_STORE
 
 
 
 //  Set some basic boring stuff.
 //
 void
-merylExactLookup::initialize(uint64               minValue_,
-                             uint64               maxValue_) {
+merylExactLookup::initialize(merylFileReader *input_, kmvalu minValue_, kmvalu maxValue_) {
 
-  //  Silently make minValue and maxValue be valid values.
+  //  Save a pointer to the input data.
 
-  if (minValue_ == 0)
-    minValue_ = 1;
+  _input = input_;
 
-  if (maxValue_ == UINT64_MAX) {
-    uint32  nV = _input->stats()->histogramLength();
+  //  Initialize filtering, silently make minValue and maxValue be valid values.
 
-    maxValue_ = _input->stats()->histogramValue(nV - 1);
-  }
-
-  //  Now initialize filtering!
+  if (minValue_ == 0)           minValue_ = 1;
+  if (maxValue_ == kmvalumax)   maxValue_ = _input->stats()->maxValue();
 
   _minValue       = minValue_;
   _maxValue       = maxValue_;
-  _valueOffset    = minValue_ - 1;                   //  "1" stored in the data is really "minValue" to the user.
 
-  _nKmersLoaded   = 0;
-  _nKmersTooLow   = 0;
-  _nKmersTooHigh  = 0;
+  //  Now initialize table parameters!  (all the rest are in the declaration initializer)
 
-  //  Now initialize table parameters!
+  _Kbits = kmer::merSize() * 2;
 
-  _Kbits          = kmer::merSize() * 2;
-
-  _prefixBits     = 0;                               //  Bits of the kmer used as an index into the table.
-  _suffixBits     = 0;                               //  Width of an entry in the suffix table.
-  _valueBits      = 0;                               //  (also in the suffix table)
-
-  if (_maxValue >= _minValue)
-    _valueBits = countNumberOfBits64(_maxValue + 1 - _minValue);
-
-  _suffixMask     = 0;
-  _dataMask       = 0;
-
-  _nPrefix        = 0;                               //  Number of entries in pointer table.
-  _nSuffix        = 0;                               //  Number of entries in suffix dable.
+  //  If we're storing values too, compute some parameters.
+  //  _valueOffset lets us store a '1' in the table to represent 'minValue'.
+  //
+  if (_maxValue >= _minValue) {
+    _valueOffset = minValue_ - 1;
+    _valueBits   = countNumberOfBits64(_maxValue + 1 - _minValue);
+    _valueMask   = buildLowBitMask<kmvalu>(_valueBits);
+  }
 
   //  Scan the histogram to count the number of kmers in range.
 
+  _nSuffix = 0;
+
   for (uint32 ii=0; ii<_input->stats()->histogramLength(); ii++) {
-    uint64  v = _input->stats()->histogramValue(ii);
+    kmvalu  v = _input->stats()->histogramValue(ii);
 
     if ((_minValue <= v) &&
         (v <= _maxValue))
       _nSuffix += _input->stats()->histogramOccurrences(ii);
   }
-
-  _prePtrBits     = countNumberOfBits64(_nSuffix);   //  Width of an entry in the prefix table.
-  _prePtrBits     = 64;
-
-  _suffixBgn      = NULL;
-  _suffixEnd      = NULL;
-  _sufData        = NULL;
-  _valData        = NULL;
 }
 
+
+void
+merylExactLookup::computeSpace(bool reportMemory,
+                               bool reportSizes,
+                               bool compute,
+                               uint32 &pbMin, uint64 &minSpace) {
+  uint32  pbbgn;
+  uint32  pbend;
+
+  //  If not computing, show values four before and four after the supplied
+  //  prefix size.
+
+  if (compute == false) {
+    pbbgn = pbMin - 4;
+    pbend = pbMin + 5;
+
+    if (pbbgn < 6)        pbbgn = 6;          //  Fix some silly cases.
+    if (pbend > _Kbits)   pbend = _Kbits;
+  }
+
+  //  If computing, iterate prefix sizes from 6 until the largest useful,
+  //  unless there is a suggested prefix size, then compute exactly and only
+  //  that.
+
+  else if (pbMin == 0) {
+    pbbgn = 6;
+    pbend = countNumberOfBits64(_nSuffix + 64 * 256) + 1;
+
+    if (pbend > kmer::merSize() * 2)
+      pbend = kmer::merSize() * 2;
+  }
+  else {
+    pbbgn = pbMin;
+    pbend = pbMin + 1;
+  }
+
+  //  Write a header if reporting.
+
+  if (reportMemory) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, " p         blocks   ent/blk             bits gigabytes (allowed: %lu GB)\n", _maxMemory >> 33);
+    fprintf(stderr, "-- -------------- --------- ---------------- ---------\n");
+  }
+
+  //  Do the compute.
+  //
+  //  A significant problem here is that we CANNOT know 'blocklw' without
+  //  knowing the kmers.  Are all kmers in the same block?  Are they
+  //  uniformly spread throughout?  The best we could do is infer this from
+  //  the size of each file in the database.
+
+  char   summary[7][128] = {0};
+
+  for (uint32 pb=pbbgn; pb<pbend; pb++) {
+    uint64  pointerw = countNumberOfBits64(_nSuffix + 64 * 256);   //  Width of a block pointer, log2(#kmers)
+    uint64  blocklw;                                               //  Width of block length, computed below.
+    uint64  tagw     = _Kbits - pb;                                //  Width of kmer suffix data
+    uint64  valuw    = _valueBits;                                 //  Width of kmer value
+
+    uint64  nprefix  = uint64one << pb;    //  Number of block pointers
+    uint64  nsuffix  = _nSuffix;           //  Number of entries kmer suffix array
+    uint64  nthreads = getNumThreads();    //  Number of threads that will be loading data.
+
+#warning This is a complete guess.
+    blocklw = countNumberOfBits64(16 * _nSuffix / nprefix);
+
+    uint64  space    = (nprefix *  pointerw          +   //  Space for pointers to blocks
+                        nprefix *  blocklw           +   //  Space for lengths of blocks
+                        nsuffix *  tagw              +   //  Space for kmer tags
+                        nsuffix * _valueBits         +   //  Space for kmer values
+                        nprefix * sizeof(uint32) * 8 +   //  Space for temporary block length
+                        nthreads * 512 * 1048576 * 8);   //  Space for load buffers
+
+    //  If we're told to compute values, save values that have the smallest
+    //  and 'optimal' space usage.
+
+    if ((compute) && (space < minSpace)) {
+      pbMin    = pb;
+      minSpace = space;
+    }
+
+    //  If reporting, report!
+
+    if (reportMemory) {
+      fprintf(stderr, "%2u %14lu %9lu %16lu %9.3f%s\n", pb, nprefix, 0lu, space, bitsToGB(space),
+              (pb == pbMin) ? "  (smallest)" : "");
+    }
+
+    if ((reportSizes) && (pb == pbMin)) {
+      snprintf(summary[0], 128, "For %lu distinct %u-mers (with %u bits used for indexing and %lu bits for tags):\n", nsuffix, _Kbits / 2, pb, tagw);
+      snprintf(summary[1], 128, "  %7.3f GB memory for block indices - %12lu elements %2lu bits wide)\n", bitsToGB(nprefix *  pointerw), nprefix, pointerw);
+      snprintf(summary[2], 128, "  %7.3f GB memory for block lengths - %12lu elements %2lu bits wide)\n", bitsToGB(nprefix *  blocklw),  nprefix, blocklw);
+      snprintf(summary[3], 128, "  %7.3f GB memory for kmer tags     - %12lu elements %2lu bits wide)\n", bitsToGB(nsuffix *  tagw),     nsuffix, tagw);
+      snprintf(summary[4], 128, "  %7.3f GB memory for kmer values   - %12lu elements %2lu bits wide)\n", bitsToGB(nsuffix *  valuw),    nsuffix, valuw);
+      snprintf(summary[5], 128, "  %7.3f GB memory for buffers\n", bitsToGB(nprefix * sizeof(uint32) * 8 + nthreads * 512 * 1048576 * 8));
+      snprintf(summary[6], 128, "  %7.3f GB memory\n", bitsToGB(space));
+    }
+  }
+
+  //  Write a footer and summary if reporting.
+
+  if (reportMemory) {
+    fprintf(stderr, "-- -------------- --------- ---------------- ---------\n");
+    fprintf(stderr, "   %14lu total kmers\n", _nSuffix);
+  }
+
+  if (reportSizes) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "%s", summary[0]);
+    fprintf(stderr, "%s", summary[1]);
+    fprintf(stderr, "%s", summary[2]);
+    fprintf(stderr, "%s", summary[3]);
+    fprintf(stderr, "%s", summary[4]);
+    fprintf(stderr, "%s", summary[5]);
+    fprintf(stderr, "%s", summary[6]);
+  }
+}
 
 
 //  Analyze the number of kmers to store in the table, to decide on
@@ -117,102 +196,50 @@ merylExactLookup::initialize(uint64               minValue_,
 //  use for indexing (prefixSize), and how many bits of data we need
 //  to store explicitly (suffixBits and valueBits).
 //
-bool
-merylExactLookup::configure(void) {
+double
+merylExactLookup::configure(double  memInGB,
+                            uint32  prefixSize,
+                            bool    reportMemory,
+                            bool    reportSizes) {
 
-  //  First, find the prefixBits that results in the smallest allocated memory size.
-  //  Due to threading over the files, we cannot use a prefix smaller than 6 bits.
+  //  Convert the memory in GB to memory in BITS.  If no memory
+  //  size is supplied, as the OS how big we can get.
+
+  if (memInGB == 0.0)
+    _maxMemory = getMaxMemoryAllowed() * 8;
+  else
+    _maxMemory = (uint64)(memInGB * 1024.0 * 1024.0 * 1024.0 * 8);
+
+  //  Find the prefixBits that results in the smallest allocated memory size.
+  //  Due to threading over the files, we cannot use a prefix smaller than 6
+  //  bits.
   //
-  //  While it's nice to find the smallest memory size possible, that's also
-  //  about the slowest possible.  Instead, empirically determined on a small
-  //  test, allow a very sparse table of 16 to 32 prefixes per kmer (if possible).
+  //  Note that _nSuffix is the post-value-filtered number of kmers we
+  //  will load into our table.
+  //
+  //  There is a BIG problem in this method in that we DO NOT know how
+  //  many kmers will be stored in each bucket without knowing the kmers
+  //  themselves.
 
-  uint64  minSpace   = UINT64_MAX;
-  uint64  optSpace   = UINT64_MAX;
+  uint32  pbMin      = prefixSize;
+  uint64  minSpace   = uint64max;
 
-  //  _nSuffix here is just the number of distinct kmers in the input.  We'll
-  //  search for prefix sizes up to that size plus a bit more to show that
-  //  what we pick really is the best size.
+  computeSpace(false, false, true, pbMin, minSpace);
 
-  uint32  pbMin      = 0;
-  uint32  pbOpt      = 0;
-  uint32  pbMax      = countNumberOfBits64(_nSuffix) + 4;
+  //  Set parameters.
 
-  if (pbMax > kmer::merSize() * 2)
-    pbMax = kmer::merSize() * 2;
+  _prefixBits  = pbMin;
+  _suffixBits  = _Kbits - _prefixBits;
+  _suffixMask  = buildLowBitMask<kmdata>(_suffixBits);
+  _nPrefix     = uint64one << _prefixBits;
 
-  for (uint32 pb=1; pb<pbMax; pb++) {
-    uint64  nprefix = (uint64)1 << pb;
-    uint64  space   = nprefix * _prePtrBits + _nSuffix * (_Kbits - pb) + _nSuffix * _valueBits;
+  //  Compute again, this time just for logging.
 
-    if (space < minSpace) {
-      pbMin        = pb;
-      minSpace     = space;
-    }
+  computeSpace(reportMemory, reportSizes, false, pbMin, minSpace);
 
-    if (space < _maxMemory) {
-      pbOpt        = pb;
-      optSpace     = space;
+  //  Return the memory required.
 
-      _prefixBits  =          pb;
-      _suffixBits  = _Kbits - pb;
-
-      _suffixMask  = uint64MASK(_suffixBits);
-      _dataMask    = uint64MASK(_valueBits);
-
-      _nPrefix     = nprefix;
-    }
-  }
-
-  //  And do it all again to keep the users entertained.
-
-  if (_verbose) {
-    fprintf(stderr, "\n");
-    fprintf(stderr, " p       prefixes             bits gigabytes (allowed: %lu GB)\n", _maxMemory >> 33);
-    fprintf(stderr, "-- -------------- ---------------- ---------\n");
-
-    uint32  minpb = (pbMin < 4)          ? 1      : pbMin - 4;  //  Show four values before and
-    uint32  maxpb = (_Kbits < pbOpt + 5) ? _Kbits : pbOpt + 5;  //  four after the smallest.
-
-    if (pbOpt == 0)
-      maxpb = minpb + 10;
-
-    for (uint32 pb=minpb; pb < maxpb; pb++) {
-      uint64  nprefix = (uint64)1 << pb;
-      uint64  space   = nprefix * _prePtrBits + _nSuffix * (_Kbits - pb) + _nSuffix * _valueBits;
-
-      if      (pb == pbMin)
-        fprintf(stderr, "%2u %14lu %16lu %9.3f (smallest)\n", pb, nprefix, space, bitsToGB(space));
-
-      else if (pb == pbOpt)
-        fprintf(stderr, "%2u %14lu %16lu %9.3f (used)\n",     pb, nprefix, space, bitsToGB(space));
-
-      else
-        fprintf(stderr, "%2u %14lu %16lu %9.3f\n",            pb, nprefix, space, bitsToGB(space));
-    }
-
-    fprintf(stderr, "-- -------------- ---------------- ---------\n");
-    fprintf(stderr, "\n");
-
-    if (_prefixBits == 0) {
-      fprintf(stderr, "Not enough memory to load %lu distinct %u-kmers.\n", _nSuffix, _Kbits / 2);
-      fprintf(stderr, "Need at least %.3f GB memory.\n", bitsToGB(minSpace));
-    }
-
-    else {
-      fprintf(stderr, "For %lu distinct %u-mers (with %u bits used for indexing and %u bits for tags):\n", _nSuffix, _Kbits / 2, _prefixBits, _suffixBits);
-      fprintf(stderr, "  %7.3f GB memory\n",                                       bitsToGB(optSpace));
-      fprintf(stderr, "  %7.3f GB memory for index (%lu elements %u bits wide)\n", bitsToGB(_nPrefix * _prePtrBits), _nPrefix, _prePtrBits);
-      fprintf(stderr, "  %7.3f GB memory for tags  (%lu elements %u bits wide)\n", bitsToGB(_nSuffix * _suffixBits), _nSuffix, _suffixBits);
-      fprintf(stderr, "  %7.3f GB memory for data  (%lu elements %u bits wide)\n", bitsToGB(_nSuffix * _valueBits),  _nSuffix, _valueBits);
-      fprintf(stderr, "\n");
-    }
-  }
-
-  if (_prefixBits == 0)
-    return(false);
-
-  return(true);
+  return(bitsToGB(minSpace));
 }
 
 
@@ -224,58 +251,78 @@ merylExactLookup::configure(void) {
 //  The loop control and kmer loading is the same in the two loops.
 void
 merylExactLookup::count(void) {
+  uint32   nf = _input->numFiles();
 
-  _suffixBgn = new uint64 [_nPrefix + 1];
+  if (_verbose) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Counting size of buckets.\n");
+  }
 
-  memset(_suffixBgn, 0, sizeof(uint64) * (_nPrefix + 1));
+  uint32  *blockLength = new uint32 [_nPrefix];        //  Temporary array holding the length of
+  memset(blockLength, 0, sizeof(uint32) * _nPrefix);   //  each block in our data.
+
+  merylExactLookupProgress   progress(" Counting: [%s]  (* - complete)\r");
 
   //  Scan all kmer files, counting the number of kmers per prefix.
   //  This is thread safe when _prefixBits is more than 6 (the number of files).
 
-  uint32   nf = _input->numFiles();
+#ifdef TEST_MAXP
+  uint64   minp[nf];
+  uint64   maxp[nf];
+
+  for (uint32 ii=0; ii<nf; ii++) {
+    minp[ii] = uint64max;
+    maxp[ii] = uint64min;
+  }
+#endif
 
 #pragma omp parallel for schedule(dynamic, 1)
   for (uint32 ff=0; ff<nf; ff++) {
     FILE                  *blockFile = _input->blockFile(ff);
     merylFileBlockReader  *block     = new merylFileBlockReader;
-
-    //  Keep local counters, otherwise, we collide when updating the global counts.
-
-    uint64  tooLow  = 0;
-    uint64  tooHigh = 0;
-    uint64  loaded  = 0;
+    uint64                 tooLow  = 0;    //  Local counters, otherwise threads collide.
+    uint64                 tooHigh = 0;
+    uint64                 loaded  = 0;
 
     //  Load blocks until there are no more.
 
     while (block->loadBlock(blockFile, ff) == true) {
+      progress.tick(ff);
+      progress.show();
+
       block->decodeBlock();
+      progress.tick(ff);
+      progress.show();
 
       for (uint32 ss=0; ss<block->nKmers(); ss++) {
-        uint64   sdata  = 0;
-        uint64   prefix = 0;
-        uint64   value  = block->values()[ss];
+        kmdata   kbits  = 0;                     //  The reconstructed kmer.
+        kmdata   prefix = 0;                     //  prefix bits of that kmer.
+        kmvalu   value  = block->values()[ss];   //  Value of the kmer, used to filter.
 
-        if (value < _minValue) {
-          tooLow++;
-          continue;
+        if ((ss & 0x7fff) == 0) {
+          progress.tick(ff);
+          progress.show();
         }
 
-        if (_maxValue < value) {
-          tooHigh++;
-          continue;
-        }
+        if (value < _minValue)   { tooLow++;   continue; }
+        if (value > _maxValue)   { tooHigh++;  continue; }
 
         loaded++;
 
-        sdata   = block->prefix();         //  Reconstruct the kmer into sdata.  This is just
-        sdata <<= _input->suffixSize();    //  kmerTiny::setPrefixSuffix().  From the kmer,
-        sdata  |= block->suffixes()[ss];   //  generate the prefix we want to save it as.
+        kbits   = block->prefix();         //  Combine the file prefix and
+        kbits <<= _input->suffixSize();    //  suffix data to reconstruct
+        kbits  |= block->suffixes()[ss];   //  the kmer bits.
 
-        prefix  = sdata >> _suffixBits;
+        prefix = kbits >> _suffixBits;     //  Then extract the prefix
+
+#ifdef TEST_MAXP
+        minp[ff] = std::min(minp[ff], (uint64)prefix);
+        maxp[ff] = std::max(maxp[ff], (uint64)prefix);
+#endif
 
         assert(prefix < _nPrefix);
 
-        _suffixBgn[prefix]++;              //  Count the number of kmers per prefix.
+        blockLength[prefix]++;                  //  Count the number of kmers per prefix.
       }
     }
 
@@ -289,36 +336,128 @@ merylExactLookup::count(void) {
     delete block;
 
     AS_UTL_closeFile(blockFile);
+
+    progress.stop(ff);
   }
 
-  //  Convert the kmers per prefix into begin coordinate for each prefix.
-  //  The loading loop uses _suffixEnd[] as the position to add the next
+  //  If the min/max prefix for each input file intersect, we've got a
+  //  problem somewhere.  Each 'prefix' will map to exactly one file, and
+  //  they're supposed to map consecutively.  Good luck figuring out what
+  //  broke if this triggers.
+  //
+  //  This triggered with prefixBits < 6 (see also line ~150).  What happened
+  //  is that we didn't have enough different prefixes to assign them to
+  //  different files....so I guess I just figured out what broke if this
+  //  triggers.
+#ifdef TEST_MAXP
+  for (uint32 ii=1; ii<nf; ii++)
+    assert(maxp[ii-1] < minp[ii]);
+#endif
+
+  //  The goal here is to build an array of (bgn,len) with the location and
+  //  length of the data for each kmer prefix.
+  //
+  //  A complication caused by using wordArray is that we need to guarantee
+  //  that no two threads will change the same word in the array.  We do this
+  //  by increasing the begin pointer of the first prefix in each file by
+  //  some amount.
+  //                                          --- prefix ---|-suffix-
+  //  A single thread will process all kmers [ffffffpppppppp|ssssssss] that
+  //  have the same ffffff bits.
+  //
+  //  The number of bits in p and s are _prefixBits and _suffixBits,
+  //  respectively.
+  //
+  //  So, in the loops below, whenever we enounter kmers with all the p bits
+  //  set to 1, we advance the begin pointer by some amount, ensuring that
+  //  the start of the next block if data is nowhere near the last block of
   //  data.
 
-  uint64  bgn = 0;
-  uint64  nxt = 0;
 
-  for (uint64 ii=0; ii<_nPrefix; ii++) {
-    nxt            = _suffixBgn[ii];
-    _suffixBgn[ii] = bgn;
-    bgn           += nxt;
+  if (_verbose) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Summing bucket sizes.\n");
   }
 
-  assert(bgn == _nKmersLoaded);
-  _suffixBgn[_nPrefix] = bgn;
+  uint64 amask = (_nPrefix - 1) >> 6;  //  Mask covering p bits.
+  uint64 maxp  = 64 * 256;             //  Maximum begin pointer.
+  uint64 maxl  = 0;                    //  Maximum block length.
 
-#ifdef VERIFY_SUFFIX_END
-  _suffixEnd = new uint64 [_nPrefix];
+  for (uint64 bgn=0, ii=0; ii<_nPrefix; ii++) {
+    maxp +=          (uint64)blockLength[ii];
+    maxl  = std::max((uint64)blockLength[ii], maxl);
+  }
 
-  for (uint64 ii=0; ii<_nPrefix; ii++)
-    _suffixEnd[ii] = _suffixBgn[ii];
+  //  Reset pointer and length bit sizes based on actual data.
+
+  _blkPtrBits = countNumberOfBits64(maxp);
+  _blkPtrMask = buildLowBitMask<uint64>(_blkPtrBits);
+  _blkLenBits = countNumberOfBits64(maxl);
+  _blkLenMask = buildLowBitMask<uint64>(_blkLenBits);
+
+  fprintf(stderr, "  block indices are %u bits wide -- sum lengths %lu (including 16384 empty pointers)\n", _blkPtrBits, maxp);
+  fprintf(stderr, "  block lengths are %u bits wide -- max length  %lu\n", _blkLenBits, maxl);
+
+  //  Allocate a wordArray to store pointers (bgn,len) to the data block for each prefix.
+
+  _sufPointer = new wordArray(_blkPtrBits + _blkLenBits, 32llu * 1024 * 1024 * 8, false);
+  _sufPointer->allocate(_nPrefix);
+
+  //  Compute the start of each block, and store the block and length
+  //  together in the word array.
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Setting pointers.\n");
+
+  for (uint64 bgn=0, ii=0; ii<_nPrefix; ii++) {
+    setPointers(ii, bgn, blockLength[ii]);
+
+#ifdef CHECK_POINTERS
+    {
+      uint64  b, e;
+
+      getPointers(ii, b, e);
+
+      if ((b != bgn) ||
+          (e != bgn + blockLength[ii]))
+        fprintf(stderr, "FAIL bgn=%lu len=%u  b=%lu e=%lu\n", bgn, blockLength[ii], b, e);
+
+      assert(b == bgn);
+      assert(e == bgn + blockLength[ii]);
+    }
 #endif
+
+    if ((_verbose) && ((ii & 0xfffffff) == 0xfffffff)) {
+      uint64 bgnr, endr;
+      getPointers(ii, bgnr, endr);
+      fprintf(stderr, " %11lu [%06u] -> %11lu [%06lu]    progress: %11lu / %-11lu\r",
+              bgn, blockLength[ii], bgnr, endr-bgnr, ii, _nPrefix);
+
+      assert(bgnr == bgn);
+      assert(endr == bgn+blockLength[ii]);
+    }
+
+    bgn += blockLength[ii];
+
+    if ((ii & amask) == amask)   //  Move ahead a goodly amount so we don't collide
+      bgn += 256;                //  on thread boundaries.
+  }
+
+  if ((_verbose) && (_nPrefix > 0xfffffff))   //  If we printed progress, terminate the line.
+    fprintf(stderr, "\n");
+
+  //  We're techically all done with the temporary blockLength array, though
+  //  we want to use something like it again when we fill the table with data.
+
+  delete [] blockLength;
 
   //  Log.
 
-  if (_verbose)
+  if (_verbose) {
+    fprintf(stderr, "\n");
     fprintf(stderr, "Will load " F_U64 " kmers.  Skipping " F_U64 " (too low) and " F_U64 " (too high) kmers.\n",
             _nKmersLoaded, _nKmersTooLow, _nKmersTooHigh);
+  }
 }
 
 
@@ -330,33 +469,53 @@ merylExactLookup::count(void) {
 //  prevent the need for any locking or coordination when filling out the
 //  array.
 //
-void
+double
 merylExactLookup::allocate(void) {
-  uint64  arraySize, arrayBlockMin;
+  uint64  arraySize;
+  uint64  arrayBlockMin;
+  double  memInGBused = 0.0;
+
+  uint64  bgn, nsuf;
+  getPointers(_nPrefix-1, bgn, nsuf);
+
+  if (_verbose) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Allocating space for %lu kmers.\n", nsuf);
+  }
 
   if (_suffixBits > 0) {
-    arraySize     = _nSuffix * _suffixBits;
-    arrayBlockMin = max(arraySize / 1024llu, 268435456llu);   //  In bits, so 32MB per block.
+    arraySize      = nsuf * _suffixBits;
+    arrayBlockMin  = std::max(arraySize / 1024llu, 32llu * 1024 * 1024 * 8);   //  In bits, 32MB per block.
+    memInGBused   += bitsToGB(arraySize);
 
-    if (_verbose)
-      fprintf(stderr, "Allocating space for %lu suffixes of %u bits each -> %lu bits (%.3f GB) in blocks of %.3f MB\n",
-              _nSuffix, _suffixBits, arraySize, bitsToGB(arraySize), bitsToMB(arrayBlockMin));
+    if (_verbose) {
+      fprintf(stderr, "  suffixes of %3u bits each -> %12lu bits (%7.3f GB) in blocks of %7.3f MB\n",
+              _suffixBits, arraySize, bitsToGB(arraySize), bitsToMB(arrayBlockMin));
+    }
+    assert(_suffixBits <= 128);
 
-    _sufData = new wordArray(_suffixBits, arrayBlockMin);
-    _sufData->allocate(_nSuffix);
+    _sufData = new wordArray(_suffixBits, arrayBlockMin, false);
+    _sufData->allocate(nsuf);
+    _sufData->erase(0, nsuf);
   }
 
   if (_valueBits > 0) {
-    arraySize     = _nSuffix * _valueBits;
-    arrayBlockMin = max(arraySize / 1024llu, 268435456llu);   //  In bits, so 32MB per block.
+    arraySize      = nsuf * _valueBits;
+    arrayBlockMin  = std::max(arraySize / 1024llu, 32llu * 1024 * 1024 * 8);   //  In bits, 32MB per block.
+    memInGBused   += bitsToGB(arraySize);
 
-    if (_verbose)
-      fprintf(stderr, "                     %lu values   of %u bits each -> %lu bits (%.3f GB) in blocks of %.3f MB\n",
-              _nSuffix, _valueBits,  arraySize, bitsToGB(arraySize), bitsToMB(arrayBlockMin));
+    if (_verbose) {
+      fprintf(stderr, "  values   of %3u bits each -> %12lu bits (%7.3f GB) in blocks of %7.3f MB\n",
+              _valueBits,  arraySize, bitsToGB(arraySize), bitsToMB(arrayBlockMin));
+    }
+    assert(_valueBits <= 64);
 
-    _valData = new wordArray(_valueBits, arrayBlockMin);
-    _valData->allocate(_nSuffix);
+    _valData = new wordArray(_valueBits, arrayBlockMin, false);
+    _valData->allocate(nsuf);
+    _valData->erase(0, nsuf);
   }
+
+  return(memInGBused);
 }
 
 
@@ -367,11 +526,20 @@ merylExactLookup::allocate(void) {
 //  In this case, we overallocate, but cannot cleanup at the end.
 void
 merylExactLookup::load(void) {
+  uint32   nf      = _input->numFiles();
 
-  count();
-  allocate();
+  if (_verbose) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Filling buckets.\n");
+  }
 
-  uint32   nf = _input->numFiles();
+  assert(buildLowBitMask<kmvalu>(_valueBits)  == _valueMask);
+  assert(buildLowBitMask<kmdata>(_suffixBits) == _suffixMask);
+
+  uint32  *prefixCount = new uint32 [_nPrefix];        //  Temporary array holding the length of
+  memset(prefixCount, 0, sizeof(uint32) * _nPrefix);   //  each block.
+
+  merylExactLookupProgress   progress(" Loading:  [%s]  (* - complete)\r");
 
 #pragma omp parallel for schedule(dynamic, 1)
   for (uint32 ff=0; ff<nf; ff++) {
@@ -381,27 +549,62 @@ merylExactLookup::load(void) {
     //  Load blocks until there are no more.
 
     while (block->loadBlock(blockFile, ff) == true) {
+      progress.tick(ff);
+      progress.show();
+
       block->decodeBlock();
+      progress.tick(ff);
+      progress.show();
 
       for (uint32 ss=0; ss<block->nKmers(); ss++) {
-        uint64   prefix = 0;
-        uint64   suffix = 0;
-        uint64   value  = block->values()[ss];
+        kmdata   kbits  = 0;
+        kmdata   prefix = 0;
+        kmdata   suffix = 0;
+        kmvalu   value  = block->values()[ss];
+        uint64   bgn, end, loc;
+
+        if ((ss & 0x7fff) == 0) {
+          progress.tick(ff);
+          progress.show();
+        }
 
         if ((value < _minValue) ||         //  Sanity checking and counting done
             (_maxValue < value))           //  in count() above.
           continue;
 
-        //  Compute and store the prefix.
+        kbits   = block->prefix();         //  Combine the file prefix and
+        kbits <<= _input->suffixSize();    //  suffix data to reconstruct
+        kbits  |= block->suffixes()[ss];   //  the kmer bits.
 
-        prefix   = block->prefix();         //  Reconstruct the kmer into sdata.  This is just
-        prefix <<= _input->suffixSize();    //  kmerTiny::setPrefixSuffix().  From the kmer,
-        prefix  |= block->suffixes()[ss];   //  generate the prefix we want to save it as.
+        prefix = kbits >> _suffixBits;     //  Extract prefix.
+        suffix = kbits  & _suffixMask;     //  Extract suffix.
 
-        suffix   = prefix & uint64MASK(_suffixBits);
-        prefix >>= _suffixBits;
+        getPointers(prefix, bgn,  end);    //  Get the block pointer.
+        loc = bgn + prefixCount[prefix];
 
-        _sufData->set(_suffixBgn[prefix], suffix);
+        _sufData->set(loc, suffix);        //  Store the suffix.
+
+        //  Test that it stored correctly.
+
+#ifdef CHECK_STORE
+        {
+          uint64 val = _sufData->get(loc);
+
+          if (val != suffix) {
+            char ks[65];
+            kmer k;   k._mer = kbits;
+
+            fprintf(stdout, "STORE kmer %s [ %s | %s ] at position %lu\n",
+                    k.toString(ks),
+                    toHex(prefix, _prefixBits),
+                    toHex(suffix, _suffixBits), loc);
+
+            fprintf(stderr, "FAIL fetched 0x%s\n", toHex(val));
+          }
+
+          assert(val == suffix);
+        }
+#endif
 
         //  Compute and store the value, if requested.
 
@@ -409,115 +612,109 @@ merylExactLookup::load(void) {
           value -= _valueOffset;
 
           if (value > _maxValue + 1 - _minValue)
-            fprintf(stderr, "minValue " F_U64 " maxValue " F_U64 " value " F_U64 " bits " F_U32 "\n",
+            fprintf(stderr, "minValue " F_U32 " maxValue " F_U32 " value " F_U32 " bits " F_U32 "\n",
                     _minValue, _maxValue, value, _valueBits);
-          assert(value <= uint64MASK(_valueBits));
+          assert(value <= _valueMask);
 
-          _valData->set(_suffixBgn[prefix], value);
+          _valData->set(loc, value);
         }
 
         //  Move to the next item.
 
-        _suffixBgn[prefix]++;
-
-#ifdef VERIFY_SUFFIX_END
-        _suffixEnd[prefix]++;
-#endif
+        prefixCount[prefix]++;
       }
     }
 
     delete block;
 
     AS_UTL_closeFile(blockFile);
+
+    progress.stop(ff);
   }
 
-  //  suffixBgn[i] is now the start of [i+1]; shift the array by one to
-  //  restore the proper meaning of suffixBgn.
-
-  for (uint64 ii=_nPrefix; ii>0; ii--)
-    _suffixBgn[ii] = _suffixBgn[ii-1];
-
-  _suffixBgn[0] = 0;
-
-  //  Optionally verify that bgn[i] == end[i-1].
-
-#ifdef VERIFY_SUFFIX_END
-  for (uint64 ii=1; ii<_nPrefix; ii++)
-    assert(_suffixBgn[ii] == _suffixEnd[ii-1]);
-
-  delete [] _suffixEnd;
-  _suffixEnd = NULL;
-#endif
+  delete [] prefixCount;
 
   //  Now just log.
 
-  if (_verbose)
+  if (_verbose) {
+    fprintf(stderr, "\n");
     fprintf(stderr, "Loaded " F_U64 " kmers.  Skipped " F_U64 " (too low) and " F_U64 " (too high) kmers.\n",
             _nKmersLoaded, _nKmersTooLow, _nKmersTooHigh);
+  }
 }
+
+
+
+double
+merylExactLookup::load(merylFileReader *input_,
+                       double           maxMemInGB_,
+                       uint32           prefixSize_,
+                       kmvalu           minValue_,
+                       kmvalu           maxValue_) {
+
+  initialize(input_, minValue_, maxValue_);            //  Initialize ourself.
+
+  double memInGBused = configure(maxMemInGB_,          //  Find parameters.
+                                 prefixSize_,
+                                 true, true);
+
+  if (_prefixBits == 0) {                              //  Fail if needed.
+    fprintf(stderr, "Failed to configure: _prefixBits = 0?\n");
+    return(memInGBused);
+  }
+
+  count();                                             //  Count kmers/prefix.
+  memInGBused = allocate();                            //  Allocate space.
+  load();                                              //  Load data.
+
+  return(memInGBused);
+}
+
+
+
 
 
 
 bool
 merylExactLookup::exists_test(kmer k) {
+  kmdata  kmer   = (kmdata)k;
+  kmdata  prefix = kmer >> _suffixBits;
+  kmdata  suffix = kmer  & _suffixMask;
+  kmdata  tag;
+  uint64  bgn, mid, end;
+  char    kmerString[65];
 
-  uint64  kmer   = (uint64)k;
-  uint64  prefix = kmer >> _suffixBits;
-  uint64  suffix = kmer  & _suffixMask;
+  fprintf(stderr, "\n");
+  fprintf(stderr, "kmer        %s  %s\n", toHex(kmer, 2 * k.merSize()), k.toString(kmerString));
+  fprintf(stderr, "suffixBits  %s  %3u bits\n", toHex(_suffixMask, _suffixBits), _suffixBits);
+  fprintf(stderr, "prefix      %s  %3u bits\n", toHex(prefix, 2 * k.merSize() - _suffixBits), 2 * k.merSize() - _suffixBits);
+  fprintf(stderr, "suffix      %s\n", toHex(suffix, _suffixBits));
 
-  uint64  bgn = _suffixBgn[prefix];
-  uint64  mid;
-  uint64  end = _suffixBgn[prefix + 1];
+  //  Do the normal binary search;if found, return that we found it.
 
-  uint64  tag;
+  if (exists(k))
+    return(true);
 
-  //  Binary search for the matching tag.
+  //  If not found, do the binary search again, reporting what we look at.
+
+  getPointers(prefix, bgn,  end);
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "BINARY SEARCH the bucket %lu-%lu for suffix %s.\n", bgn, end, toHex(suffix, _suffixBits));
 
   while (bgn + 8 < end) {
     mid = bgn + (end - bgn) / 2;
 
     tag = _sufData->get(mid);
 
-    if (tag == suffix)
+    fprintf(stderr, "TEST bgn %8lu %8lu %8lu end -- dat %s =?= %s suffix\n",
+            bgn, mid, end, toHex(tag), toHex(suffix));
+
+    if (tag == suffix) {
+      fprintf(stderr, "FOUND?\n");
+      assert(0);
       return(true);
-
-    if (suffix < tag)
-      end = mid;
-
-    else
-      bgn = mid + 1;
-  }
-
-  //  Switch to linear search when we're down to just a few candidates.
-
-  for (mid=bgn; mid < end; mid++) {
-    tag = _sufData->get(mid);
-
-    if (tag == suffix)
-      return(true);
-  }
-
-  fprintf(stderr, "\n");
-  fprintf(stderr, "FAILED kmer   0x%016lx\n", kmer);
-  fprintf(stderr, "FAILED prefix 0x%016lx\n", prefix);
-  fprintf(stderr, "FAILED suffix 0x%016lx\n", suffix);
-  fprintf(stderr, "\n");
-  fprintf(stderr, "original  %9lu %9lu\n", _suffixBgn[prefix], _suffixBgn[prefix + 1]);
-  fprintf(stderr, "final     %9lu %9lu\n", bgn, end);
-  fprintf(stderr, "\n");
-
-  bgn = _suffixBgn[prefix];
-  end = _suffixBgn[prefix + 1];
-
-  while (bgn + 8 < end) {
-    mid = bgn + (end - bgn) / 2;
-
-    tag = _sufData->get(mid);
-
-    fprintf(stderr, "TEST bgn %8lu %8lu %8lu end -- dat %lu =?= %lu suffix\n", bgn, mid, end, tag, suffix);
-
-    if (tag == suffix)
-      return(true);
+    }
 
     if (suffix < tag)
       end = mid;
@@ -529,11 +726,41 @@ merylExactLookup::exists_test(kmer k) {
   for (mid=bgn; mid < end; mid++) {
     tag = _sufData->get(mid);
 
-    fprintf(stderr, "ITER bgn %8lu %8lu %8lu end -- dat %lu =?= %lu suffix\n", bgn, mid, end, tag, suffix);
+    fprintf(stderr, "ITER bgn %8lu %8lu %8lu end -- dat %s\n",
+            bgn, mid, end, toHex(tag));
 
-    if (tag == suffix)
+    if (tag == suffix) {
+      fprintf(stderr, "FOUND?\n");
+      assert(0);
       return(true);
+    }
   }
+
+  //  If still not found, search the whole bucket.
+
+  getPointers(prefix, bgn,  end);
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "LINEAR SEARCH the bucket %lu-%lu for suffix %s.\n", bgn, end, toHex(suffix));
+
+  for (mid=bgn; mid < end; mid++) {
+    tag = _sufData->get(mid);
+
+    fprintf(stderr, "LINR bgn %8lu %8lu %8lu end -- dat %s\n",
+            bgn, mid, end, toHex(tag));
+
+    if (tag == suffix) {
+      fprintf(stderr, "FOUND?\n");
+      assert(0);
+      return(true);
+    }
+  }
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "FAILED kmer   0x%s\n", toHex(kmer));
+  fprintf(stderr, "FAILED prefix 0x%s\n", toHex(prefix));
+  fprintf(stderr, "FAILED suffix 0x%s\n", toHex(suffix));
+  fprintf(stderr, "\n");
 
   assert(0);
 };

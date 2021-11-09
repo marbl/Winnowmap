@@ -21,8 +21,6 @@
 #include "arrays.H"
 #include "strings.H"
 
-#include <stdarg.h>
-
 //  Report ALL attempts to seek somewhere.
 #undef DEBUG_SEEK
 
@@ -69,7 +67,7 @@ writeToFile(void const  *objects,
   //  writing 16 GB of data at once; it seems to truncate to 32-bit somewhere.
 
   while (nWritten < nObjects) {
-    uint64  toWrite = min(blockSize, nObjects - nWritten);
+    uint64  toWrite = std::min(blockSize, nObjects - nWritten);
 
     errno = 0;
     uint64 written = fwrite(((char *)objects) + nWritten * objectSize, objectSize, toWrite, file);
@@ -102,7 +100,7 @@ loadFromFile(void        *objects,
   //  we still read in 32 MB chunks.
 
   while (nLoaded < nObjects) {
-    uint64  toLoad = min(blockSize, nObjects - nLoaded);
+    uint64  toLoad = std::min(blockSize, nObjects - nLoaded);
 
     errno = 0;
     uint64 loaded = fread(((char *)objects) + nLoaded * objectSize, objectSize, toLoad, file);
@@ -156,7 +154,7 @@ readLine(char *&L, uint32 &Llen, uint32 &Lmax, FILE *F) {
     return(false);
 
   if ((L == NULL) || (Lmax == 0))
-    allocateArray(L, Lmax = 4, resizeArray_clearNew);
+    allocateArray(L, Lmax, 4, resizeArray_clearNew);
 
   L[Lmax-2] = 0;
   L[Lmax-1] = 0;
@@ -188,7 +186,7 @@ readLine(char *&L, uint32 &Llen, uint32 &Lmax, FILE *F) {
 
   //  Trim trailing whitespace.
 
-  while ((Llen > 0) && (isspace(L[Llen-1])))
+  while ((Llen > 0) && (isWhiteSpace(L[Llen-1])))
     L[--Llen] = 0;
 
   return(true);
@@ -205,7 +203,7 @@ AS_UTL_readLine(char *&L, uint32 &Llen, uint32 &Lmax, FILE *F) {
     return(false);
 
   if ((L == NULL) || (Lmax == 0))
-    allocateArray(L, Lmax = 1024, resizeArray_clearNew);
+    allocateArray(L, Lmax, 1024);
 
   Llen = 0;
 
@@ -217,7 +215,7 @@ AS_UTL_readLine(char *&L, uint32 &Llen, uint32 &Lmax, FILE *F) {
 
   while ((feof(F) == false) && (ch != '\n')) {
     if (Llen + 1 >= Lmax)
-      resizeArray(L, Llen, Lmax, Lmax + growth, resizeArray_copyData | resizeArray_clearNew);  //  Grow the array.
+      resizeArray(L, Llen, Lmax, Lmax + growth, _raAct::copyData | _raAct::clearNew);  //  Grow the array.
 
     L[Llen++] = ch;
 
@@ -230,7 +228,7 @@ AS_UTL_readLine(char *&L, uint32 &Llen, uint32 &Lmax, FILE *F) {
 
   //  Trim trailing whitespace.
 
-  while ((Llen > 0) && (isspace(L[Llen-1])))
+  while ((Llen > 0) && (isWhiteSpace(L[Llen-1])))
     L[--Llen] = 0;
 
   return(true);
@@ -340,6 +338,27 @@ AS_UTL_rename(char const *oldname, char const *newname) {
   if (errno)
     fprintf(stderr, "AS_UTL_renane()--  Failed to rename file '%s' to '%s': %s\n",
             oldname, newname, strerror(errno)), exit(1);
+}
+
+
+
+void
+AS_UTL_rename(char const *oldprefix, char oldseparator, char const *oldsuffix,
+              char const *newprefix, char newseparator, char const *newsuffix) {
+  char   oldpath[FILENAME_MAX+1] = {0};
+  char   newpath[FILENAME_MAX+1] = {0};
+
+  snprintf(oldpath, FILENAME_MAX, "%s%c%s", oldprefix, oldseparator, oldsuffix);
+  snprintf(newpath, FILENAME_MAX, "%s%c%s", newprefix, newseparator, newsuffix);
+
+  if (pathExists(oldpath) == false)
+    return;
+
+  errno = 0;
+  rename(oldpath, newpath);
+  if (errno)
+    fprintf(stderr, "AS_UTL_renane()--  Failed to rename file '%s' to '%s': %s\n",
+            oldpath, newpath, strerror(errno)), exit(1);
 }
 
 
@@ -521,6 +540,41 @@ AS_UTL_sizeOfFile(FILE *file) {
 
 
 
+uint64
+AS_UTL_timeOfFile(char const *path) {
+  struct stat  s;
+
+  errno = 0;
+  if (stat(path, &s) == -1)
+    fprintf(stderr, "Failed to stat() file '%s': %s\n", path, strerror(errno)), exit(1);
+
+#ifdef __APPLE__
+  return(s.st_mtimespec.tv_sec);
+#else
+  return(s.st_mtim.tv_sec);
+#endif
+}
+
+
+
+uint64
+AS_UTL_timeOfFile(FILE *file) {
+  struct stat  s;
+  off_t        size = 0;
+
+  errno = 0;
+  if (fstat(fileno(file), &s) == -1)
+    fprintf(stderr, "Failed to stat() FILE*: %s\n", strerror(errno)), exit(1);
+
+#ifdef __APPLE__
+  return(s.st_mtimespec.tv_sec);
+#else
+  return(s.st_mtim.tv_sec);
+#endif
+}
+
+
+
 off_t
 AS_UTL_ftell(FILE *stream) {
 
@@ -659,7 +713,7 @@ findSharedFile(char const *relpath, char const *filename) {
 
 
 void
-AS_UTL_loadFileList(char const *fileName, vector<char const *> &fileList) {
+AS_UTL_loadFileList(char const *fileName, std::vector<char const *> &fileList) {
 
   FILE *F = AS_UTL_openInputFile(fileName);
 
@@ -805,92 +859,3 @@ void    AS_UTL_createEmptyFile(char const *prefix, char separator, char const *s
 
   AS_UTL_closeFile(file, prefix, separator, suffix);
 }
-
-
-
-void
-AS_UTL_writeFastA(FILE *f,
-                  char const *s, int sl, int bl,
-                  char const *h, ...) {
-  va_list ap;
-  char   *o  = new char [sl + sl / ((bl == 0) ? sl : bl) + 2];
-  int     si = 0;
-  int     oi = 0;
-
-  while (si < sl) {
-    o[oi++] = s[si++];
-
-    if (bl != 0 && (si % bl) == 0)
-      o[oi++] = '\n';
-  }
-  if (o[oi-1] != '\n')
-    o[oi++] = '\n';
-  o[oi] = 0;
-
-  va_start(ap, h);
-  vfprintf(f, h, ap);
-  va_end(ap);
-
-  writeToFile(o, "AS_UTL_writeFastA::seq", oi, f);
-
-  delete [] o;
-}
-
-
-void
-AS_UTL_writeFastQ(FILE *f,
-                  char const *s, int sl,
-                  char const *q, int ql,
-                  char const *h, ...) {
-  va_list ap;
-  int     qi = 0;
-  int     oi = 0;
-
-  assert(sl == ql);
-
-  va_start(ap, h);
-  vfprintf(f, h, ap);
-  va_end(ap);
-
-  writeToFile(s, "AS_UTL_writeFastQ::seq", sl, f);
-  fprintf(f, "\n");
-
-  fprintf(f, "+\n");
-  writeToFile(q, "AS_UTL_writeFastQ::qlt", ql, f);
-  fprintf(f, "\n");
-}
-
-
-
-void
-AS_UTL_writeFastQ(FILE *f,
-                  char  const *s, int sl,
-                  uint8 const *q, int ql,
-                  char  const *h, ...) {
-  va_list ap;
-  char   *o  = new char [ql + 1];
-  int     qi = 0;
-  int     oi = 0;
-
-  assert(sl == ql);
-
-  while (qi < ql)              //  Reencode the QV
-    o[oi++] = q[qi++] + '!';   //  to the Sanger spec.
-  o[oi] = 0;
-
-  va_start(ap, h);
-  vfprintf(f, h, ap);
-  va_end(ap);
-
-  writeToFile(s, "AS_UTL_writeFastQ::seq", sl, f);
-  fprintf(f, "\n");
-
-  fprintf(f, "+\n");
-  writeToFile(o, "AS_UTL_writeFastQ::qlt", ql, f);
-  fprintf(f, "\n");
-
-  delete [] o;
-}
-
-
-

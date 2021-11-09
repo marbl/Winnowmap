@@ -135,8 +135,8 @@ sswLib::align(char const *seqA_, uint32 seqlenA_, int32 bgnA_, int32 endA_,
 
   //  Allocate space for at least lenA (lenB) things.
 
-  resizeArray(_intA, 0, _maxA, _lenA, resizeArray_doNothing);
-  resizeArray(_intB, 0, _maxB, _lenB, resizeArray_doNothing);
+  resizeArray(_intA, 0, _maxA, _lenA);
+  resizeArray(_intB, 0, _maxB, _lenB);
 
   //  Convert the input sequences into integers.
 
@@ -193,7 +193,7 @@ sswLib::align(char const *seqA_, uint32 seqlenA_, int32 bgnA_, int32 endA_,
 
   //  Make space for the alignment, and copy it over.
 
-  resizeArrayPair(_cigarCode, _cigarValu, _cigarLen, _cigarMax, (uint32)(result->cigarLen + 1), resizeArray_doNothing);
+  resizeArrayPair(_cigarCode, _cigarValu, 0, _cigarMax, result->cigarLen + 1);
 
   for (int32 cc=0; cc<result->cigarLen; ++cc) {
     _cigarCode[cc] = "MIDNSHP=X"[result->cigar[cc] & 0xf];
@@ -359,13 +359,13 @@ sswLib::analyzeAlignment(void) {
 
   //  Compute the same erate as overlapper does.
 
-  _erate = (double)(_aMis + _aGap) / min((_endA - _bgnA), (_endB - _bgnB));
+  _erate = (double)(_aMis + _aGap) / std::min((_endA - _bgnA), (_endB - _bgnB));
 
   //  Allocate stuff for building a map between the A and B sequences and the
   //  cigar string.
 
-  resizeArrayPair(_cigarMapBgn, _cigarMapEnd, 0, _cigarMapMax, _cigarLen, resizeArray_doNothing);
-  resizeArray    (_aMap,                      0, _aMapMax,     _aLen,     resizeArray_doNothing);
+  resizeArrayPair(_cigarMapBgn, _cigarMapEnd, 0, _cigarMapMax, _cigarLen);
+  resizeArray    (_aMap,                      0, _aMapMax,     _aLen);
 
   uint32       apos = _bgnA;
   uint32       bpos = _bgnB;

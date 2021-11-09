@@ -33,68 +33,84 @@
 #endif
 
 
-//  We take argc and argv, so, maybe, eventually, we'll want to parse
-//  something out of there.  We return argc in case what we parse we
-//  want to remove.
-//
-int
-AS_configure(int argc, char **argv) {
 
+//  Set the x86 FPU control word to force double precision rounding
+//  rather than `extended' precision rounding. This causes base
+//  calls and quality values on x86 GCC-Linux (tested on RedHat
+//  Linux) machines to be identical to those on IEEE conforming UNIX
+//  machines.
 
 #ifdef X86_GCC_LINUX
-  //  Set the x86 FPU control word to force double precision rounding
-  //  rather than `extended' precision rounding. This causes base
-  //  calls and quality values on x86 GCC-Linux (tested on RedHat
-  //  Linux) machines to be identical to those on IEEE conforming UNIX
-  //  machines.
-  //
+
+void
+setFPU(void) {
   fpu_control_t fpu_cw = ( _FPU_DEFAULT & ~_FPU_EXTENDED ) | _FPU_DOUBLE;
 
   _FPU_SETCW( fpu_cw );
+}
+
+#else
+
+void
+setFPU(void) {
+}
+
 #endif
 
 
+
+//  The sizes that GNU decides to enable parallelization for are
+//  ludicrously small.  A benchmark (Dec 2019, gcc6) showed that a
+//  sort-heavy code was a whopping 10% faster (wall clock 61 vs 69 seconds)
+//  but used 10x the CPU time (707 vs 69 seconds).
+//
+//  Further, the sort is no longer in-place.  This matters, significantly,
+//  for our overlap sorting, since we fill memory with as many overlaps as
+//  possible, and if we don't sort in-place, we run out of memory.
+//
+//  So, if the silly user has enabled parallelization, turn it off for
+//  sorting by setting the minimal size to something large.
+
 #ifdef _GLIBCXX_PARALLEL_SETTINGS_H
+
+void
+setSequentialSorting(void) {
   __gnu_parallel::_Settings s = __gnu_parallel::_Settings::get();
 
-  //  The sizes that GNU decides to enable parallelization for are
-  //  ludicrously small.  A benchmark (Dec 2019, gcc6) showed that a
-  //  sort-heavy code was a whopping 10% faster (wall clock 61 vs 69 seconds)
-  //  but used 10x the CPU time (707 vs 69 seconds).
-  //
-  //  Further, the sort is no longer in-place.  This matters, significantly,
-  //  for our overlap sorting, since we fill memory with as many overlaps as
-  //  possible, and if we don't sort in-place, we run out of memory.
-  //
-  //  So, if the silly user has enabled parallelization, turn it off for
-  //  sorting by setting the minimal size to something large.
-  //
   s.sort_minimal_n = UINT64_MAX;
 
   __gnu_parallel::_Settings::set(s);
+}
+
+#else
+
+void
+setSequentialSorting(void) {
+}
+
 #endif
 
 
-  //  Default to one thread.  This is mostly to disable the parallel sort,
-  //  which seems to have a few bugs left in it.  e.g., a crash when using 48
-  //  threads, but not when using 47, 49 or 64 threads.
-
-  omp_set_num_threads(1);
 
 
-  //  Install a signal handler to catch seg faults and errors.
+
+int
+AS_configure(int argc, char **argv, uint32 maxThreads) {
+
+  setFPU();
+  setSequentialSorting();
 
   AS_UTL_installCrashCatcher(argv[0]);
 
+  getProcessTime();   //  To set the process start time.
 
-  //  Set the start time.
+  //  Enable threads to whatever limit is given to us or whatever the
+  //  envrionment says.
 
-  getProcessTime();
+  setNumThreads(getMaxThreadsAllowed(maxThreads));
 
-
-  //
-  //  Et cetera.
-  //
+  //  Parse any common options from the command line.  AS_configure() was
+  //  designed to consume options, but this isn't needed at the moment.
 
   for (int32 i=0; i<argc; i++) {
     if (strcmp(argv[i], "--version") == 0) {
@@ -102,80 +118,6 @@ AS_configure(int argc, char **argv) {
       exit(0);
     }
   }
-
-
-  //
-  //  Logging.
-  //
-
-#if 0
-  char *p = getenv("CANU_DIRECTORY");
-  if (p == NULL)
-    return(argc);
-
-  char  D[FILENAME_MAX] = {0};
-  char  N[FILENAME_MAX] = {0};
-  char  H[1024]         = {0};  //  HOST_NAME_MAX?  Undefined.
-
-  //  Make a directory for logs.  If an error, just return now, there's nothing we can log.
-
-  snprintf(D, FILENAME_MAX, "%s/canu-logs", p);
-
-  errno = 0;
-  mkdir(D, S_IRWXU | S_IRWXG | S_IRWXO);
-  if ((errno != 0) && (errno != EEXIST))
-    return(argc);
-
-  //  Our hostname is part of our unique filename.
-
-  gethostname(H, 1024);
-
-  //  Our executable name is part of our unique filename too.
-
-  char *E = argv[0] + strlen(argv[0]) - 1;
-  while ((E != argv[0]) && (*E != '/'))
-    E--;
-  if (*E == '/')
-    E++;
-
-  //  Construct a name for this log, and open it.  If we can't open it, just skip the log.
-
-  snprintf(N, FILENAME_MAX, "%s/" F_U64 "_%s_" F_U64 "_%s",
-           D,
-           (uint64)time(NULL),
-           H,
-           (uint64)getpid(),
-           E);
-
-  errno = 0;
-  FILE *F = fopen(N, "w");
-  if ((errno != 0) || (F == NULL))
-    return(argc);
-
-  fprintf(F, "Canu v%s.%s (+%s commits) r%s %s.\n",
-          CANU_VERSION_MAJOR,
-          CANU_VERSION_MINOR,
-          CANU_VERSION_COMMITS,
-          CANU_VERSION_REVISION,
-          CANU_VERSION_HASH);
-  fprintf(F, "\n");
-  fprintf(F, "Current Working Directory:\n");
-  fprintf(F, "%s\n", getcwd(N, FILENAME_MAX));
-  fprintf(F, "\n");
-  fprintf(F, "Command:\n");
-  fprintf(F, "%s", argv[0]);
-
-  for (int32 i=1; i<argc; i++)
-    if (argv[i][0] == '-')
-      fprintf(F, " \\\n  %s", argv[i]);
-    else
-      fprintf(F, " %s", argv[i]);
-
-  fprintf(F, "\n");
-
-  AS_UTL_closeFile(F, N, true);
-#endif
-
 
   return(argc);
 }

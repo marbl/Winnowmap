@@ -39,6 +39,8 @@ public:
   compressedFileReader(char const *filename);
   ~compressedFileReader();
 
+  void  reopen(void);
+
   FILE *operator*(void)     {  return(_file);              };
   FILE *file(void)          {  return(_file);              };
 
@@ -49,10 +51,13 @@ public:
                                       (_stdi == false));   };
 
 private:
-  FILE  *_file;
-  char  *_filename;
-  bool   _pipe;
-  bool   _stdi;
+  FILE     *_file;
+  char     *_filename;
+
+  cftType   _type;
+
+  bool      _pipe;
+  bool      _stdi;
 };
 
 

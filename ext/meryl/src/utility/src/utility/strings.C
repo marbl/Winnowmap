@@ -20,161 +20,138 @@
 #include "strings.H"
 #include "arrays.H"
 
-
-uint64
-scaledNumber(uint64 n, uint32 div) {
-
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-  if (n > 9999)   n /= div;
-
-  return(n);
-}
-
-
-char
-scaledUnit(uint64 n, uint32 div) {
-  char u = ' ';
-
-  if (n > 9999)  {  n /= div; u = 'k';  }
-  if (n > 9999)  {  n /= div; u = 'M';  }
-  if (n > 9999)  {  n /= div; u = 'G';  }
-  if (n > 9999)  {  n /= div; u = 'T';  }
-  if (n > 9999)  {  n /= div; u = 'P';  }
-  if (n > 9999)  {  n /= div; u = 'E';  }
-  if (n > 9999)  {  n /= div; u = 'Z';  }
-  if (n > 9999)  {  n /= div; u = 'Y';  }
-
-  return(u);
-}
-
-
-
-const char *
-scaledName(uint64 n, uint32 div) {
-  const char *s = "";
-
-  if (n > 9999)  {  n /= div; s = " thousand";     }
-  if (n > 9999)  {  n /= div; s = " million";      }
-  if (n > 9999)  {  n /= div; s = " billion";      }
-  if (n > 9999)  {  n /= div; s = " trillion";     }
-  if (n > 9999)  {  n /= div; s = " quadrillion";  }
-  if (n > 9999)  {  n /= div; s = " quintillion";  }
-  if (n > 9999)  {  n /= div; s = " sextillion";   }
-  if (n > 9999)  {  n /= div; s = " septillion";   }
-
-  return(s);
-}
-
-
-
-bool
-decodeBoolean(char *value) {
-  bool ret = false;
-
-  switch (value[0]) {
-    case '0':
-    case 'f':
-    case 'F':
-    case 'n':
-    case 'N':
-      ret = false;
-      break;
-    case '1':
-    case 't':
-    case 'T':
-    case 'y':
-    case 'Y':
-      ret = true;
-      break;
-    default:
-      fprintf(stderr, "decodeBoolean()-- unrecognized value '%s'\n", value);
-      break;
-  }
-
-  return(ret);
-}
-
-
-
-//  Returns true if a key and value are found.  line is modified.
-//  Returns true, with value == NULL, if no delimiter is found.
-//  Returns false if the line is blank, or is a comment.
+////////////////////////////////////////////////////////////
 //
+//  Strip whitespace from the end of a line.
+//
+
+void
+chomp(char *S) {
+  char *t = S;
+
+  while (*t != 0)
+    t++;
+
+  t--;
+
+  while ((t >= S) && (isWhiteSpace(*t) == true))
+    *t-- = 0;
+}
+
+
+
+
+////////////////////////////////////////////////////////////
+//
+//  Convert a line into a key=value pair.
+//
+
 bool
-KeyAndValue::find(char *line) {
+KeyAndValue::find(const char *line) {
+  char  *ptr = nullptr;
 
-  key_ = NULL;
-  val_ = NULL;
+  //  Reset our state, but return fail if there is no line.
 
-  if (line == NULL)
+  _key = nullptr;
+  _val = nullptr;
+
+  if (isEmptyString(line) == true)
     return(false);
 
-  key_ = line;
+  //  Copy the string so we can do bad things to it.
 
-  while  (isspace(*key_) == true)        //  Spaces before the key
-    key_++;
+  duplicateArray(_line, _lineLen, _lineMax, line, (uint32)strlen(line) + 1);
 
-  if ((iscomment(*key_) == true) ||      //  If we're at a comment right now, there is no key
-      (*key_ == 0)) {                    //  and we return failure.
-    key_ = NULL;
-    val_ = NULL;
+  //  Zip ahead until the first non-space letter.
+  //
+  //  If the letter is a comment or the delimiter, we're done; there is no key.
+
+  ptr = _line;
+
+  while (isWhiteSpace(*ptr) == true)          //  Spaces before the key.
+    ptr++;
+
+  if ((*ptr == 0) ||
+      (isComment(*ptr) == true) ||
+      (isDelimiter(*ptr) == true))
     return(false);
+
+  _key = ptr;
+
+  //  Keep zipping ahead until the end of the line.
+  //    Detect the first comment mark that is preceeded by a space.
+  //      Change it to NUL to terminate the string and return.
+  //
+  //    Detect the first key=value delimiter.
+  //      Change it to a space so we can iterate over it.
+  //      Change all consecutive delimiters to a space too.
+
+  char *equals    = nullptr;
+  char *eol       = nullptr;
+  bool  lastspace = false;
+
+  while (1) {
+    eol = ptr;
+
+    if ((lastspace == true) && (isComment(*ptr) == true)) {
+      *ptr = 0;
+      break;
+    }
+
+    lastspace = isWhiteSpace(*ptr);
+
+    if ((isDelimiter(*ptr) == true) && (equals == nullptr)) {
+      equals = ptr;    //  Remember the first letter in the delimiter
+
+      while ((*ptr != 0) && (isDelimiter(*ptr) == true))
+        *ptr++ = ' ';
+
+      ptr--;           //  Back up to the last delimiter letter.
+
+      eol    = ptr;    //  Update eol since we possibly moved ptr ahead.
+    }
+
+    if (*ptr == 0)
+      break;
+
+    ptr++;
   }
 
-  val_ = key_;                           //  We're at the key now
+  //  If no delimiter, we're done.  There cannot be a key/value pair.
 
-  while ((*val_ != 0) &&
-         (isdelimiter(*val_) == false))  //  The key cannot contain a delimiter.
-    val_++;
+  if (equals == nullptr)
+    return(false);
 
-  if (*val_ == 0) {                      //   If at the end of the string, there isn't a
-    val_ = NULL;                         //   value, but we'll return true and a key anyway.
+  //  Cleanup 1:  Find the last letter in the key make the key stop there.
+
+  while (isWhiteSpace(*equals) == true)
+    equals--;
+
+  equals++;      //  Move from the last letter of the key.
+  *equals = 0;   //  Terminate the key string.
+  equals++;      //  Move to the next letter, either space or the value.
+
+  //  Cleanup 2: Find the first letter of the value.
+  //  If we're at eol now, return true with an empty value string.
+
+  while (isWhiteSpace(*equals) == true)
+    equals++;
+
+  _val = equals;
+
+  if (equals == eol)
     return(true);
-  }
 
-  *val_++ = 0;
+  //  Cleanup 3: Find the last letter of the value and make the value stop
+  //  there.
 
-  while (isdelimiter(*val_) == true) {   //  Spaces or delimiter after the key
-    *val_ = 0;
-    val_++;
-  }
+  assert(*eol == 0);
 
-  if (*val_ == 0)                        //  And there is no value, must be a filename.
-    return(true);
+  eol--;
 
-  char *eol = val_;                      //  We're at the value now
-
-  //  If quoted, all we need to do is find the other quote and stop.
-  if ((*val_ == '"') ||
-      (*val_ == '\'')) {
-    val_++;
-    eol++;
-
-    while (*eol != '"')                  //  The value itself.
-      eol++;                             //  The value CAN contain delimiters and comment markers.
-
+  while (isWhiteSpace(*eol) == true) {
     *eol = 0;
-  }
-
-  //  Otherwise, not quoted.  Find the first comment marker (or eol) then backup to the first non-space.
-  else {
-    while (iscomment(*eol) == false)     //  The value MUST NOT contain delimiters or comment markers.
-      eol++;                             //  But it can contains spaces and other nasties.
-
-    eol--;                               //  Back up off the comment or eol.
-
-    while (isspace(*eol) == true)        //  And keep backing up as long as we're a space.
-      eol--;
-
-    eol++;                               //  Move past the last non-space, non-comment
-
-    *eol = 0;                            //  And terminate the value
+    eol--;
   }
 
   return(true);
@@ -182,46 +159,69 @@ KeyAndValue::find(char *line) {
 
 
 
-splitToWords::splitToWords(const char *string, splitType type) {
-  _wordsLen  = 0;
-  _wordsMax  = 0;
-  _words     = NULL;
+////////////////////////////////////////////////////////////
+//
+//  Split the input 'line' into an array of words or path
+//  components.
 
-  _charsLen = 0;
-  _charsMax = 0;
-  _chars    = NULL;
+void
+splitToWords::split(const char *line, char sep) {
 
-  if (string)
-    split(string, type);
+  clearsc();
+  setsc(sep);
+
+  split(line, splitAsIs);
 }
 
+void
+splitToWords::split(const char *line, char const *sep) {
 
+  clearsc();
+  for (uint32 ii=0; sep[ii]; ii++)
+    setsc(sep[ii]);
 
-splitToWords::~splitToWords() {
-  delete [] _chars;
-  delete [] _words;
+  split(line, splitAsIs);
 }
-
 
 
 void
 splitToWords::split(const char *line, splitType type) {
 
-  _wordsLen = 0;        //  Initialize to no words
-  _charsLen = 0;        //  and no characters.
+  //  Initialize to no words and no characters.
+  //  Then return if the input line is empty.
 
-  if (line == NULL)     //  Bail if there isn't a line to process.
+  _wordsLen = 0;
+  _charsLen = 0;
+
+  if (isEmptyString(line) == true)
     return;
+
+  //  Initialize the separator array based on splitType, if needed.
+
+  if (type == splitWords) {
+    _sc[0] = _sc[1] = _sc[2] = _sc[3] = 0;
+
+    setsc(' ');
+    setsc('\t');
+    setsc('\n');
+    setsc('\r');
+  }
+
+  if (type == splitPaths) {
+    _sc[0] = _sc[1] = _sc[2] = _sc[3] = 0;
+
+    setsc('/');
+  }
 
   //  Count the number of words and chars in the input line, then make
   //  sure there is space for us to store them.
 
   while (line[_charsLen] != 0)
-    if (isSeparator(line[_charsLen++], type))
+    if (issc(line[_charsLen++]))
       _wordsLen++;
 
-  resizeArray(_words, 0, _wordsMax, _wordsLen + 1, resizeArray_doNothing);
-  resizeArray(_chars, 0, _charsMax, _charsLen + 1, resizeArray_doNothing);
+  resizeArray(_words, 0, _wordsMax, _wordsLen + 1);
+  resizeArray(_chars, 0, _charsMax, _charsLen + 1);
 
   //  Clear all the words pointers, and copy the input line to our storage.
   //  This greatly simplifies the loop, as we don't need to worry about
@@ -236,17 +236,37 @@ splitToWords::split(const char *line, splitType type) {
   _wordsLen = 0;
 
   for (uint32 st=1, ii=0; ii < _charsLen; ii++) {
-    if (isSeparator(line[ii], type)) {      //  If the character is a word
-      _chars[ii] = 0;                       //  separator, convert to NUL,
-      st         = true;                    //  and flag the next character
-    }                                       //  as the start of a new word.
+    if (issc(line[ii])) {                     //  If the character is a word
+      _chars[ii] = 0;                         //  separator, convert to NUL,
+      st         = true;                      //  and flag the next character
+    }                                         //  as the start of a new word.
 
-    else if (st) {                          //  Otherwise, if this is the
-      _words[_wordsLen++] = _chars + ii;    //  start of a word, make
-      st                  = false;          //  a new word.
+    else if (st) {                            //  Otherwise, if this is the
+      _words[_wordsLen++] = _chars + ii;      //  start of a word, make
+      st                  = false;            //  a new word.
     }
   }
 }
 
 
+void
+splitToWords::clear(void) {
+  _wordsLen = 0;
+  _charsLen = 0;
+}
 
+
+void
+splitToWords::erase(void) {
+
+  delete [] _words;
+  delete [] _chars;
+
+  _wordsLen = 0;
+  _wordsMax = 0;
+  _words    = nullptr;
+
+  _charsLen = 0;
+  _charsMax = 0;
+  _chars    = nullptr;
+}

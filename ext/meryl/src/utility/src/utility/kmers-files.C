@@ -20,73 +20,36 @@
 #include "kmers.H"
 
 
-merylFileBlockReader::merylFileBlockReader() {
-  _data        = NULL;
-
-  _blockPrefix = 0;
-  _nKmers      = 0;
-  _nKmersMax   = 0;
-
-  _kCode       = 0;
-  _unaryBits   = 0;
-  _binaryBits  = 0;
-  _k1          = 0;
-
-  _cCode       = 0;
-  _c1          = 0;
-  _c2          = 0;
-
-  _suffixes    = NULL;
-  _values      = NULL;
-}
-
-
-merylFileBlockReader::~merylFileBlockReader() {
-  delete    _data;
-  delete [] _suffixes;
-  delete [] _values;
-}
-
 
 bool
 merylFileBlockReader::loadBlock(FILE *inFile, uint32 activeFile, uint32 activeIteration) {
 
-  //  If _data exists, we've already loaded the block, but haven't used it yet.
-
-  if (_data)
-    return(true);
-
-  //  Otherwise, allocate _data, read the block from disk.  If nothing loaded,
-  //  return false.
-
-  _data = new stuffedBits(inFile);
-
   _blockPrefix = 0;
   _nKmers      = 0;
 
-  if (_data->getLength() == 0) {
-    delete _data;
-    _data = NULL;
+  //  Read the data from disk, but if empty, return false to stop iteration.
 
+  _data.loadFromFile(inFile);
+
+  if (_data.getLength() == 0)
     return(false);
-  }
 
   //  Decode the header of _data, but don't process the kmers yet.
 
-  uint64 m1    = _data->getBinary(64);
-  uint64 m2    = _data->getBinary(64);
+  uint64 m1    = _data.getBinary(64);
+  uint64 m2    = _data.getBinary(64);
 
-  _blockPrefix = _data->getBinary(64);
-  _nKmers      = _data->getBinary(64);
+  _blockPrefix = _data.getBinary(64);
+  _nKmers      = _data.getBinary(64);
 
-  _kCode       = _data->getBinary(8);
-  _unaryBits   = _data->getBinary(32);
-  _binaryBits  = _data->getBinary(32);
-  _k1          = _data->getBinary(64);
+  _kCode       = _data.getBinary(8);
+  _unaryBits   = _data.getBinary(32);
+  _binaryBits  = _data.getBinary(32);
+  _k1          = _data.getBinary(64);
 
-  _cCode       = _data->getBinary(8);
-  _c1          = _data->getBinary(64);
-  _c2          = _data->getBinary(64);
+  _cCode       = _data.getBinary(8);
+  _c1          = _data.getBinary(64);
+  _c2          = _data.getBinary(64);
 
 #ifdef SHOW_LOAD
   fprintf(stderr, "loadBlock()-- file %u iter %u:\n", activeFile, activeIteration);
@@ -116,13 +79,7 @@ merylFileBlockReader::loadBlock(FILE *inFile, uint32 activeFile, uint32 activeIt
 
 void
 merylFileBlockReader::decodeBlock(void) {
-  if (_data == NULL)
-    return;
-
-  //fprintf(stderr, "decodeBlock() nKmersMax %lu nKmers %lu\n", _nKmersMax, _nKmers);
-
-  resizeArrayPair(_suffixes, _values, 0, _nKmersMax, _nKmers, resizeArray_doNothing);
-
+  resizeArrayPair(_suffixes, _values, 0, _nKmersMax, _nKmers, _raAct::doNothing);
   decodeBlock(_suffixes, _values);
 }
 
@@ -130,26 +87,22 @@ merylFileBlockReader::decodeBlock(void) {
 
 void
 merylFileBlockReader::decodeBlock(kmdata *suffixes, kmvalu *values) {
-
-  if (_data == NULL)
-    return;
-
   kmdata  thisPrefix = 0;
 
   //  Decode the suffixes.
 
   if      (_kCode == 1) {
     for (uint32 kk=0; kk<_nKmers; kk++) {
-      thisPrefix += (kmdata)_data->getUnary();
+      thisPrefix += (kmdata)_data.getUnary();
 
       uint32 ls = (_binaryBits <= 64) ? (0)           : (_binaryBits - 64);
       uint32 rs = (_binaryBits <= 64) ? (_binaryBits) : (64);
 
       suffixes[kk]   = thisPrefix;
       suffixes[kk] <<= ls;
-      suffixes[kk]  |= _data->getBinary(ls);
+      suffixes[kk]  |= _data.getBinary(ls);
       suffixes[kk] <<= rs;
-      suffixes[kk]  |= _data->getBinary(rs);
+      suffixes[kk]  |= _data.getBinary(rs);
     }
   }
 
@@ -161,20 +114,17 @@ merylFileBlockReader::decodeBlock(kmdata *suffixes, kmvalu *values) {
 
   if      (_cCode == 1) {
     for (uint32 kk=0; kk<_nKmers; kk++)
-      values[kk] = _data->getBinary(32);
+      values[kk] = _data.getBinary(32);
   }
 
   else if (_cCode == 2) {
     for (uint32 kk=0; kk<_nKmers; kk++)
-      values[kk] = _data->getBinary(64);
+      values[kk] = _data.getBinary(64);
   }
 
   else {
     fprintf(stderr, "ERROR: unknown cCode %u\n", _cCode), exit(1);
   }
-
-  delete _data;
-  _data = NULL;
 }
 
 

@@ -24,7 +24,7 @@ merylStreamWriter::merylStreamWriter(merylFileWriter *writer, uint32 fileNumber)
 
   _writer = writer;
 
-  strncpy(_outName, _writer->_outName, FILENAME_MAX);
+  strncpy(_outName, _writer->_outName, FILENAME_MAX+1);
 
   //  Encoding data
 

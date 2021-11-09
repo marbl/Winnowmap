@@ -40,19 +40,15 @@
   static const uint32 MT_LOWER_MASK = 0x7fffffffUL;  //  least significant r bits
 
 class mtRandom {
-private:
-  void   construct(uint32 s);
-
 public:
-  mtRandom()           { construct(getpid() * time(NULL)); };
-  mtRandom(uint32 s)   { construct(s);                     };
+  mtRandom()           { mtSetSeed(getpid() * time(NULL)); };
+  mtRandom(uint32 s)   { mtSetSeed(s);                     };
   mtRandom(uint32 *init_key, uint32 key_length);
 
-  ~mtRandom() {
-  };
+  void     mtSetSeed(uint32 s);
 
-  uint32     mtRandom32(void);
-  uint64     mtRandom64(void)   { return((((uint64)mtRandom32()) << 32) | (uint64)mtRandom32()); }
+  uint32   mtRandom32(void);
+  uint64   mtRandom64(void)   { return((((uint64)mtRandom32()) << 32) | (uint64)mtRandom32()); }
 
   //  Real valued randomness
   //    mtRandomRealOpen()    -- on [0,1) real interval
@@ -71,9 +67,9 @@ public:
 
   //  returns a random number with gaussian distribution, mean of zero and std.dev. of 1
   //
-  double  mtRandomGaussian(double mean=0.0, double stddev=1.0);
+  double   mtRandomGaussian(double mean=0.0, double stddev=1.0);
 
-  double  mtRandomExponential(double lambda, double tau=1.0);
+  double   mtRandomExponential(double lambda, double tau=1.0);
 
 private:
   uint32  mt[MT_N];  //  State vector array

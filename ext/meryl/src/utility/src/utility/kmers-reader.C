@@ -495,7 +495,7 @@ merylFileReader::nextMer(void) {
 
   //  Make sure we have space for the decoded data
 
-  resizeArrayPair(_suffixes, _values, 0, _nKmersMax, _nKmers, resizeArray_doNothing);
+  resizeArrayPair(_suffixes, _values, 0, _nKmersMax, _nKmers, _raAct::doNothing);
 
   //  Decode the block into _OUR_ space.
   //

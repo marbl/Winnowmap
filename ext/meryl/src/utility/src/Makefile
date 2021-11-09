@@ -27,11 +27,6 @@
 #       instances of "$" within them need to be escaped with a second "$" to
 #       accomodate the double expansion that occurs when eval is invoked.
 
-#  Before doing ANYTHING, initialize submodules.
-#ifeq ($(wildcard utility/src/Makefile), )
-#  $(info $(shell git submodule update --init utility))
-#  $(info $(space))
-#endif
 
 # ADD_CLEAN_RULE - Parameterized "function" that adds a new rule and phony
 #   target for cleaning the specified target (removing its build-generated
@@ -343,8 +338,9 @@ DIR_STACK :=
 INCDIRS :=
 TGT_STACK :=
 
-# Discover our OS and architecture.  These are used to set the BUILD_DIR and TARGET_DIR to
-# something more useful than 'build' and '.'.
+# Discover our OS and architecture.  These were previously used to set
+# BUILD_DIR and TARGET_DIR to allow multi-platform builds.  DESTDIR will do
+# that for us too.
 
 OSTYPE      := $(shell echo `uname`)
 OSVERSION   := $(shell echo `uname -r`)
@@ -369,31 +365,18 @@ ifeq (${OSTYPE}, SunOS)
   endif
 endif
 
-#  Some filesystems cannot use < or > in file names, but for reasons unknown
-#  (or, at least, reasons we're not going to admit to), files in the overlap
-#  store are named ####<###>.  Enabling POSIX_FILE_NAMES Will change the
-#  names to ####.###.
-#
-#  Be aware this will break object store compatibility.
-#
-ifeq ($(POSIX_FILE_NAMES), 1)
-  CXXFLAGS += -DPOSIX_FILE_NAMES
+#  Set paths for building and installing.  If DESTDIR doesn't exist, use the
+#  directory just above us.
 
+ifeq "$(strip ${DESTDIR})" ""
+  BUILD_DIR    := $(realpath ..)/build/obj
+  TARGET_DIR   := $(realpath ..)/build
 else
-  #  Try to create non-<posix> file names.  It's tempting to use 'wildcard' instead
-  #  of the 'ls', but it doesn't work.
-  $(shell touch "non-<posix>-name" > /dev/null 2>&1)
-
-  ifeq (non-<posix>-name, $(shell ls "non-<posix>-name" 2> /dev/null))
-    #$(info Extended POSIX filenames allowed.)
-  else
-    #$(info POSIX filenames required.)
-    CXXFLAGS += -DPOSIX_FILE_NAMES
-  endif
-
-  $(shell rm -f "non-<posix>-name")
+  BUILD_DIR    := $(DESTDIR)/$(MODULE)/build/obj
+  TARGET_DIR   := $(DESTDIR)/$(MODULE)/build
 endif
 
+#
 #  Set compiler and flags based on discovered hardware
 #
 #  By default, debug symbols are included in all builds (even optimized).
@@ -409,7 +392,6 @@ endif
 #
 #  BUILDJEMALLOC will enable jemalloc library support.
 #
-
 
 ifeq ($(origin CXXFLAGS), undefined)
   ifeq ($(BUILDOPTIMIZED), 1)
@@ -438,7 +420,16 @@ ifeq ($(origin CXXFLAGS), undefined)
   CXXFLAGS += -Wno-unused-variable
   CXXFLAGS += -Wno-deprecated-declarations
   CXXFLAGS += -Wno-format-truncation
-  CXXFLAGS += -std=c++11
+  CXXFLAGS += -std=c++17
+
+  CFLAGS += -Wall -Wextra -Wformat
+  CFLAGS += -Wno-char-subscripts
+  CFLAGS += -Wno-sign-compare
+  CFLAGS += -Wno-unused-function
+  CFLAGS += -Wno-unused-parameter
+  CFLAGS += -Wno-unused-variable
+  CFLAGS += -Wno-deprecated-declarations
+  CFLAGS += -Wno-format-truncation
 else
   CXXFLAGSUSER := ${CXXFLAGS}
 endif
@@ -482,6 +473,26 @@ ifeq (${OSTYPE}, Darwin)
   endif
 
   ifeq ($(CC), cc)
+    CC8    := $(shell echo `which gcc-mp-8`)
+    CXX8   := $(shell echo `which g++-mp-8`)
+
+    ifdef CXX8
+      CC  := $(CC8)
+      CXX := $(CXX8)
+    endif
+  endif
+
+  ifeq ($(CC), cc)
+    CC9    := $(shell echo `which gcc-mp-9`)
+    CXX9   := $(shell echo `which g++-mp-9`)
+
+    ifdef CXX9
+      CC  := $(CC9)
+      CXX := $(CXX9)
+    endif
+  endif
+
+  ifeq ($(CC), cc)
     CC8    := $(shell echo `which gcc-7`)
 	  CXX8   := $(shell echo `which g++-7`)
 
@@ -498,6 +509,16 @@ ifeq (${OSTYPE}, Darwin)
     ifdef CXX8
       CC  := $(CC8)
       CXX := $(CXX8)
+    endif
+  endif
+
+  ifeq ($(CC), cc)
+    CC9    := $(shell echo `which gcc-9`)
+	  CXX9   := $(shell echo `which g++-9`)
+
+    ifdef CXX9
+      CC  := $(CC9)
+      CXX := $(CXX9)
     endif
   endif
 
@@ -539,9 +560,12 @@ ifeq (${CANU_BUILD_ENV}, ports)
 
 else
 
-  CC       ?= gcc6
-  CXX      ?= g++6
-  CCLIB    ?= -rpath /usr/local/lib/gcc6
+  # Ignore the gmake default 'c++' and force g++9.
+	ifeq ($(origin CXX), default)
+    CC    = gcc9
+    CXX   = g++9
+    CCLIB = -rpath /usr/local/lib/gcc9
+  endif
 
   #  GCC
   CXXFLAGS  += -I/usr/local/include -pthread -fopenmp -fPIC
@@ -706,16 +730,14 @@ $(foreach TGT,${ALL_TGTS},\
 $(foreach TGT,${ALL_TGTS},\
   $(eval -include ${${TGT}_DEPS}))
 
-	@if [ ! -e ${TARGET_DIR}/bin ]                ; then mkdir -p ${TARGET_DIR}/bin                ; fi
-
 #  Makefile processed.  Regenerate the version number file, make some
 #  directories, and report that we're starting the build.
 
-$(shell ../scripts/version_update.pl meryl-utility utility/version.H)
+$(eval $(shell ../scripts/version_update.pl $(MODULE) utility/version.H))
 
 $(shell mkdir -p ${TARGET_DIR}/bin)
 
-$(info For '${OSTYPE}' '${OSVERSION}' as '${MACHINETYPE}' into '${DESTDIR}${PREFIX}/$(OSTYPE)-$(MACHINETYPE)/{bin,obj}'.)
+$(info For '${OSTYPE}' '${OSVERSION}' as '${MACHINETYPE}' into '${TARGET_DIR}/{bin,obj}'.)
 $(info Using '$(shell which ${CXX})' version '${GXX_VV}'.)
 ifneq ($(origin CXXFLAGSUSER), undefined)
 $(info Using user-supplied CXXFLAGS '${CXXFLAGSUSER}'.)

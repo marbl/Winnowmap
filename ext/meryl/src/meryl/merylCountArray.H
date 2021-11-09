@@ -52,7 +52,7 @@ public:
   merylCountArray();
   ~merylCountArray();
 
-  uint64    initialize(uint64 prefix, uint32 width, uint32 segsize=64);
+  uint64    initialize(uint64 prefix, uint32 width);
 
   uint64    initializeValues(kmvalu maxValue=0);
 
@@ -98,30 +98,50 @@ public:
 
 
 public:
-  uint64           numBits(void)        {  return(_nBits);  };
+  uint64           numBits(void)        {  return(_nBits);           };
+  uint64           numKmers(void)       {  return(_nBits / _sWidth); };
 
-  //  Returns the number of bytes in pages touched by data in this object.
-  //  It's a pretty tight bound.  The extra 1 was added to make it
-  //  be an overestimate of what 'top' is reporting.  Without it,
-  //  it underestimates by a significant amount.
 
-  //  This is underestimating the actual resident memory usage.  The constant
-  //  +5 tries to adjust, but still underestimates on large data sets.
 
+public:
+  //  Using 1 here is probably not the most time efficient value, but the
+  //  memory usage estimate seems to be the most accurate with it.
+  //
+  static
+  uint32            pagesPerSegment(void)    { return(1); };
+
+  //  We're doing accounting ourself instead of asking the OS for the current
+  //  process size because some OSs (FreeBSD, probably MacOS) don't decrease
+  //  the size and we need to when these tables are too full opposed to
+  //  simply allocated.
+  //
+  //  If the memset in merylCountArray() is enabled, this calculation does
+  //  not represent the amount of resident memory.
+  //
+  //  The number of pages used for data is complicated.  We're allocating in
+  //  blocks of pagesPerSegment() but reserving a few words for OS overhead.
+  //
+  //    fSegmsUsed: the number of full segments allocated, _segSize bits in each.
+  //    pPagesUsed: the leftover bits, plus one partial page used
+  //
   uint64           usedSize(void) {
-    uint64  fullSegs  = (_nBits / _segSize);        //  Number of fully filled segments
-    uint64  partSeg   = (_nBits % _segSize) + 64;   //  Number of bites (rounded to next word) in the last (partially filled) segment
+    uint64 memUsed    = 0;
+ 
+    uint64 fSegmsUsed = _nBits / _segSize;
+    uint64 pPagesUsed = (_nBits - fSegmsUsed * _segSize) / _bitsPerPage + 1;
 
-    uint64  pagesUsed = 0;
+    uint64 pagesUsed  = fSegmsUsed * pagesPerSegment() + pPagesUsed;
 
-    pagesUsed += fullSegs * (_segSize / _bitsPerPage) + fullSegs * (((_segSize % _bitsPerPage) == 0) ? 0 : 1);
-    pagesUsed +=            (partSeg  / _bitsPerPage) +            (((partSeg  % _bitsPerPage) == 0) ? 0 : 1);
-    pagesUsed += 5;
-    pagesUsed += _nReAlloc;
+    memUsed += sizeof(merylCountArray);         //  For our metadata
+    memUsed += pagesUsed * _bitsPerPage / 8;    //  For the packed kmer data
+    memUsed += _segAlloc * sizeof(uint64 **);   //  For pointers to segments
 
-    return(pagesUsed * _bitsPerPage / 8 + _segAlloc * sizeof(uint64 **) + sizeof(merylCountArray));
+    return(memUsed);
   };
 
+  //  Returns the change in size since the last call, but sets a threshold so
+  //  we don't spend a bunch of time calling usedSize().
+  //
   uint64           usedSizeDelta(void) {
 
     if (_nBits < _nBitsTrigger)
@@ -160,6 +180,7 @@ private:
   uint64           _bitsPerPage;
   uint64           _nReAlloc;
 
+private:
   uint32           _segSize;      //  Number of bits in each segment.
   uint32           _segAlloc;     //  Number of segments we're allowed to allocate  (size of the array below).
   uint64         **_segments;     //  An array of blocks of data.

@@ -95,7 +95,7 @@ merylHistogram::dump(stuffedBits *bits) {
     }
   }
 
-  for (map<uint64,uint64>::iterator it=_histBig.begin(); it != _histBig.end(); it++) {
+  for (auto it=_histBig.begin(); it != _histBig.end(); it++) {
     bits->setBinary(64, it->first);      //  Value
     bits->setBinary(64, it->second);     //  Number of occurrences
   }

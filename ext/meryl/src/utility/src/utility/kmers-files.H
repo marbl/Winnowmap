@@ -59,8 +59,12 @@ openInputBlock(char   *nameprefix,
 
 class merylFileBlockReader {
 public:
-  merylFileBlockReader();
-  ~merylFileBlockReader();
+  merylFileBlockReader() {
+  }
+  ~merylFileBlockReader() {
+    delete [] _suffixes;
+    delete [] _values;
+  }
 
   bool      loadBlock(FILE *inFile, uint32 activeFile, uint32 activeIteration=0);
 
@@ -74,23 +78,23 @@ public:
   kmvalu   *values(void)   { return(_values);   };
 
 private:
-  stuffedBits  *_data;
+  stuffedBits   _data;
 
-  kmpref        _blockPrefix;  //  The prefix of all kmers in this block
-  uint64        _nKmers;       //  The number of kmers in this block
-  uint64        _nKmersMax;    //  The number of kmers we've allocated space for in _suffixes and _values
+  kmpref        _blockPrefix = 0;   //  The prefix of all kmers in this block
+  uint64        _nKmers      = 0;   //  The number of kmers in this block
+  uint64        _nKmersMax   = 0;   //  The number of kmers we've allocated space for in _suffixes and _values
 
-  uint32        _kCode;        //  Encoding type of kmer, then 128 bits of parameters
-  uint32        _unaryBits;    //    bits in the unary prefix  (of the kmer suffix)
-  uint32        _binaryBits;   //    bits in the binary suffix (of the kmer suffix)
-  uint64        _k1;           //    unused
+  uint32        _kCode       = 0;   //  Encoding type of kmer, then 128 bits of parameters
+  uint32        _unaryBits   = 0;   //    bits in the unary prefix  (of the kmer suffix)
+  uint32        _binaryBits  = 0;   //    bits in the binary suffix (of the kmer suffix)
+  uint64        _k1          = 0;   //    unused
 
-  uint32        _cCode;        //  Encoding type of the values, then 128 bits of parameters
-  uint64        _c1;           //    unused
-  uint64        _c2;           //    unused
+  uint32        _cCode       = 0;   //  Encoding type of the values, then 128 bits of parameters
+  uint64        _c1          = 0;   //    unused
+  uint64        _c2          = 0;   //    unused
 
-  kmdata       *_suffixes;     //  Decoded suffixes and values.
-  kmvalu       *_values;       //
+  kmdata       *_suffixes    = nullptr;   //  Decoded suffixes and values.
+  kmvalu       *_values      = nullptr;   //
 };
 
 

@@ -73,7 +73,7 @@ private:
   uint32                     _prefixSize;
 
   uint32                     _suffixSize;
-  uint64                     _suffixMask;
+  kmdata                     _suffixMask;
 
   uint32                     _numFilesBits;
   uint32                     _numBlocksBits;

@@ -72,6 +72,9 @@ public:
 
   bool   isMultiSet(void)         { return(_isMultiSet);        };
 
+  bool   isCompressedFile(void)   { return((_sequence != NULL) &&
+                                           (_sequence->isCompressed())); };
+
   merylOperation           *_operation;
   merylFileReader          *_stream;
   dnaSeqFile               *_sequence;

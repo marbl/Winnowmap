@@ -158,8 +158,8 @@ intervalList<iNum>::merge(iNum minOverlap) {
 
     if ((_list[thisI]._end >= _list[nextI]._end) ||
         (_list[thisI]._end >= _list[nextI]._bgn + minOverlap)) {
-      _list[thisI]._end  = max(_list[nextI]._end, _list[thisI]._end);
-      _list[thisI]._cnt +=     _list[nextI]._cnt;
+      _list[thisI]._end  = std::max(_list[nextI]._end, _list[thisI]._end);
+      _list[thisI]._cnt +=          _list[nextI]._cnt;
       nextI++;
     }
 
@@ -237,8 +237,8 @@ intervalList<iNum>::invert(iNum invlo, iNum invhi) {
       inv[invLen++] = { invlo, _list[0]._bgn, 1 };
 
     for (uint32 i=1; i<_listLen; i++) {
-      iNum  bgn = max(invlo,         _list[i-1]._end);
-      iNum  end = min(_list[i]._bgn, invhi);
+      iNum  bgn = std::max(invlo,         _list[i-1]._end);
+      iNum  end = std::min(_list[i]._bgn, invhi);
 
       if (bgn < end)
         inv[invLen++] = { bgn, end, 1 };

@@ -52,8 +52,8 @@ public:
   void       insert(V value) {
     if ((_minValue <= value) &&
         (value     <= _maxValue)) {
-      _smallestV = min(_smallestV, value);
-      _largestV  = max(_largestV,  value);
+      _smallestV = std::min(_smallestV, value);
+      _largestV  = std::max(_largestV,  value);
 
       _histo[value - _minValue]++;
     }
@@ -107,8 +107,8 @@ public:
   void       insert(V value) {
     if ((_minValue <= value) &&
         (value     <= _maxValue)) {
-      _smallestV = min(_smallestV, value);
-      _largestV  = max(_largestV,  value);
+      _smallestV = std::min(_smallestV, value);
+      _largestV  = std::max(_largestV,  value);
 
       _histo[value]++;
     }
@@ -124,13 +124,13 @@ public:
   };
 
 private:
-  V         _minValue;      //  Minimum value we'll accept into the histogram
-  V         _maxValue;
+  V              _minValue;      //  Minimum value we'll accept into the histogram
+  V              _maxValue;
 
-  V         _smallestV;     //  Minimum value we have seen in the input data
-  V         _largestV;
+  V              _smallestV;     //  Minimum value we have seen in the input data
+  V              _largestV;
 
-  map<V,T>  _histo;         //  Histogram data.
+  std::map<V,T>  _histo;         //  Histogram data.
 };
 
 
@@ -325,8 +325,8 @@ main(int argc, char **argv) {
 
   argc = AS_configure(argc, argv);
 
-  vector<char const *>  err;
-  int                   arg = 1;
+  std::vector<char const *>  err;
+  int                        arg = 1;
   while (arg < argc) {
     if (strcmp(argv[arg], "-mers") == 0) {
       inputDBname = argv[++arg];

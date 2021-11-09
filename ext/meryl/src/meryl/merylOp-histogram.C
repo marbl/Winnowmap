@@ -62,7 +62,7 @@ merylOperation::reportStatistics(void) {
 
   //  Now just dump it.
 
-  uint64  nUniverse = uint64MASK(kmer::merSize() * 2) + 1;
+  uint64  nUniverse = buildLowBitMask<uint64>(kmer::merSize() * 2) + 1;
   uint64  sDistinct = 0;
   uint64  sTotal    = 0;
 

@@ -24,10 +24,7 @@
 #error "include kmers.H, not this."
 #endif
 
-
 #include <map>
-
-using namespace std;
 
 
 //  Stores a histogram of kmer count values.
@@ -73,18 +70,20 @@ public:
   uint64    histogramValue(uint32 i)              { return(_histVs[i]);   };
   uint64    histogramOccurrences(uint32 i)        { return(_histOs[i]);   };
 
+  uint64    maxValue(void)                        { return(_histVs[_histLen-1]); };
+
 private:
-  uint64              _numUnique;
-  uint64              _numDistinct;
-  uint64              _numTotal;
+  uint64                   _numUnique;
+  uint64                   _numDistinct;
+  uint64                   _numTotal;
 
-  uint32              _histMax;    //  Max value that can be stored in _hist.
-  uint64             *_hist;
-  map<uint64, uint64> _histBig;    //  Values bigger than _histMax; <value,occurrances>
+  uint32                   _histMax;    //  Max value that can be stored in _hist.
+  uint64                  *_hist;
+  std::map<uint64, uint64> _histBig;    //  Values bigger than _histMax; <value,occurrances>
 
-  uint64              _histLen;    //  If loaded from disk, this is the unpacked histogram.
-  uint64             *_histVs;     //  The value this histogram entry is counting.
-  uint64             *_histOs;     //  The number of occurrences of that value.
+  uint64                   _histLen;    //  If loaded from disk, this is the unpacked histogram.
+  uint64                  *_histVs;     //  The value this histogram entry is counting.
+  uint64                  *_histOs;     //  The number of occurrences of that value.
 };
 
 
