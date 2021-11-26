@@ -108,7 +108,7 @@ static inline void yes_or_no(mm_mapopt_t *opt, int flag, int long_idx, const cha
 int main(int argc, char *argv[])
 {
 	unsetenv((char *)"MALLOC_ARENA_MAX"); //for openmp
-	const char *opt_str = "2aSDw:W:k:K:t:r:f:Vv:g:G:I:d:XT:s:x:Hcp:M:n:z:A:B:O:E:m:N:Qu:R:hF:LC:yYPo:";
+	const char *opt_str = "2aSDw:W:k:K:t:r:f:Vv:g:G:XT:s:x:Hcp:M:n:z:A:B:O:E:m:N:Qu:R:hF:LC:yYPo:";
 	ketopt_t o = KETOPT_INIT;
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 		else if (c == 'W') opt.kmer_freq_filename = o.arg;
 		else if (c == 'k') ipt.k = atoi(o.arg);
 		else if (c == 'H') ipt.flag |= MM_I_HPC;
-		else if (c == 'd') fnw = o.arg; // the above are indexing related options, except -I
+		/*else if (c == 'd') fnw = o.arg; // the above are indexing related options, except -I*/
 		else if (c == 'r') opt.bw = (int)mm_parse_num(o.arg);
 		else if (c == 't') {n_threads = atoi(o.arg); n_threads_override = true;}
 		else if (c == 'v') mm_verbose = atoi(o.arg);
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 		else if (c == 'B') opt.b = atoi(o.arg);
 		else if (c == 's') opt.min_dp_max = atoi(o.arg);
 		else if (c == 'C') opt.noncan = atoi(o.arg);
-		else if (c == 'I') ipt.batch_size = mm_parse_num(o.arg);
+		/*else if (c == 'I') ipt.batch_size = mm_parse_num(o.arg);*/
 		else if (c == 'K') opt.mini_batch_size = (int)mm_parse_num(o.arg);
 		else if (c == 'R') rg = o.arg;
 		else if (c == 'h') fp_help = stdout;
@@ -299,9 +299,7 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    -H           use homopolymer-compressed k-mer\n");
 		fprintf(fp_help, "    -k INT       k-mer size (no larger than 28) [%d]\n", ipt.k);
 		fprintf(fp_help, "    -w INT       minimizer window size [%d]\n", ipt.w);
-		fprintf(fp_help, "    -W FILE      input file containing list of high freq. k-mers []\n");
-		fprintf(fp_help, "    -I NUM       split index for every ~NUM input bases [4G]\n");
-		fprintf(fp_help, "    -d FILE      dump index to FILE []\n");
+		fprintf(fp_help, "    -W FILE      input file containing list of high frequency k-mers []\n");
 		fprintf(fp_help, "  Mapping:\n");
 		fprintf(fp_help, "    -f FLOAT     filter out top FLOAT (<1) fraction of repetitive minimizers [0.0]\n");
 		fprintf(fp_help, "    -g NUM       stop chain enlongation if there are no minimizers in INT-bp [%d]\n", opt.max_gap);
@@ -357,7 +355,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	if (!idx_rdr->is_idx && fnw == 0 && argc - o.ind < 2) {
-		fprintf(stderr, "[ERROR] missing input: please specify a query file to map or option -d to keep the index\n");
+		fprintf(stderr, "[ERROR] missing input: please specify a query file to map\n");
 		mm_idx_reader_close(idx_rdr);
 		return 1;
 	}
