@@ -54,5 +54,5 @@ Minimizer sampling density using a human X chromosome as the reference, with the
 
 ## Publications
 
-- **Chirag Jain, Arang Rhie, Nancy Hansen, Sergey Koren and Adam Phillippy**. "[A long read mapping method for highly repetitive reference sequences](https://doi.org/10.1101/2020.11.01.363887)". *BioRxiv*, 2020.
+- **Chirag Jain, Arang Rhie, Nancy Hansen, Sergey Koren and Adam Phillippy**. "[Long-read mapping to repetitive reference sequences using Winnowmap2](https://doi.org/10.1038/s41592-022-01457-8)". *Nature Methods*, 2022.
 - **Chirag Jain, Arang Rhie, Haowen Zhang, Chaudia Chu, Brian Walenz, Sergey Koren and Adam Phillippy**. "[Weighted minimizer sampling improves long read mapping](https://doi.org/10.1093/bioinformatics/btaa435)". *Bioinformatics (ISMB proceedings)*, 2020.
