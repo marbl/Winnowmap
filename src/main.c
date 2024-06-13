@@ -108,7 +108,7 @@ static inline void yes_or_no(mm_mapopt_t *opt, int flag, int long_idx, const cha
 int main(int argc, char *argv[])
 {
 	unsetenv((char *)"MALLOC_ARENA_MAX"); //for openmp
-	const char *opt_str = "2aSDw:W:k:K:t:r:f:Vv:g:G:XT:s:x:Hcp:M:n:z:A:B:O:E:m:N:Qu:R:hF:LC:yYPo:";
+	const char *opt_str = "2aSDw:W:k:K:t:r:f:Vv:g:G:I:XT:s:x:Hcp:M:n:z:A:B:O:E:m:N:Qu:R:hF:LC:yYPo:";
 	ketopt_t o = KETOPT_INIT;
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 		else if (c == 'B') opt.b = atoi(o.arg);
 		else if (c == 's') opt.min_dp_max = atoi(o.arg);
 		else if (c == 'C') opt.noncan = atoi(o.arg);
-		/*else if (c == 'I') ipt.batch_size = mm_parse_num(o.arg);*/
+    else if (c == 'I') ipt.batch_size = mm_parse_num(o.arg);
 		else if (c == 'K') opt.mini_batch_size = (int)mm_parse_num(o.arg);
 		else if (c == 'R') rg = o.arg;
 		else if (c == 'h') fp_help = stdout;
@@ -299,6 +299,7 @@ int main(int argc, char *argv[])
 		fprintf(fp_help, "    -H           use homopolymer-compressed k-mer\n");
 		fprintf(fp_help, "    -k INT       k-mer size (no larger than 28) [%d]\n", ipt.k);
 		fprintf(fp_help, "    -w INT       minimizer window size [%d]\n", ipt.w);
+    fprintf(fp_help, "    -I NUM       split index for every ~NUM input bases [4G]\n");
 		fprintf(fp_help, "    -W FILE      input file containing list of high frequency k-mers []\n");
 		fprintf(fp_help, "  Mapping:\n");
 		fprintf(fp_help, "    -f FLOAT     filter out top FLOAT (<1) fraction of repetitive minimizers [0.0]\n");
