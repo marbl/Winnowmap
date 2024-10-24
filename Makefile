@@ -1,4 +1,8 @@
-export CPPFLAGS= -g -Wall -O2 -DHAVE_KALLOC -fopenmp -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable -fno-tree-vectorize
+
+OMP_PER_READ_THREADS = 1
+### use `make OMP_PER_READ_THREADS=N` to override the default 1 OMP thead with N threads
+
+export CPPFLAGS= -g -Wall -O2 -DOMP_PER_READ_THREADS=$(OMP_PER_READ_THREADS) -DHAVE_KALLOC -fopenmp -std=c++11 -Wno-sign-compare -Wno-write-strings -Wno-unused-but-set-variable -fno-tree-vectorize
 export LIBS= -lm -lz -lpthread
 export BUILDSTACKTRACE=0 #for meryl
 
