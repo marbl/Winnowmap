@@ -7,6 +7,7 @@
 #include "mmpriv.h"
 #include "ketopt.h"
 #include <thread>
+#include <sched.h>
 
 #define MM_VERSION "2.03"
 
@@ -23,6 +24,15 @@ void liftrlimit()
 #else
 void liftrlimit() {}
 #endif
+
+int get_cpu_count() {
+    cpu_set_t cs;
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &cs) != 0) {
+        perror("sched_getaffinity failed; returning safe count of 1 for CPUs");
+        return 1;
+    }
+    return CPU_COUNT(&cs);
+}
 
 static ko_longopt_t long_options[] = {
 	{ "bucket-bits",    ko_required_argument, 300 },
@@ -112,7 +122,7 @@ int main(int argc, char *argv[])
 	ketopt_t o = KETOPT_INIT;
 	mm_mapopt_t opt;
 	mm_idxopt_t ipt;
-	int i, c, n_threads = std::max(3, (int) std::thread::hardware_concurrency()/2), n_parts, old_best_n = -1;
+	int i, c, n_threads = std::max(3, get_cpu_count()/OMP_PER_READ_THREADS), n_parts, old_best_n = -1;
 	bool n_threads_override = false;
 	//by default, we set pthread count to half of hardware supported threads
 	char *fnw = 0, *rg = 0, *junc_bed = 0, *s;
@@ -148,7 +158,7 @@ int main(int argc, char *argv[])
 		else if (c == 'H') ipt.flag |= MM_I_HPC;
 		/*else if (c == 'd') fnw = o.arg; // the above are indexing related options, except -I*/
 		else if (c == 'r') opt.bw = (int)mm_parse_num(o.arg);
-		else if (c == 't') {n_threads = atoi(o.arg); n_threads_override = true;}
+		else if (c == 't') {n_threads = atoi(o.arg) / OMP_PER_READ_THREADS; n_threads_override = true;}
 		else if (c == 'v') mm_verbose = atoi(o.arg);
 		else if (c == 'g') opt.max_gap = (int)mm_parse_num(o.arg);
 		else if (c == 'G') mm_mapopt_max_intron_len(&opt, (int)mm_parse_num(o.arg));
@@ -221,7 +231,7 @@ int main(int argc, char *argv[])
 		else if (c == 343) {
 			opt.SVaware = false; // --sv-off (defaults back to ISMB'20 version)
 			if (n_threads_override == false) // --adjust thread count as openmp is not used
-				n_threads = std::max(3, (int) std::thread::hardware_concurrency());
+				n_threads = std::max(3, get_cpu_count());
 		}
 		else if (c == 314) { // --frag
 			yes_or_no(&opt, MM_F_FRAG_MODE, o.longidx, o.arg, 1);
