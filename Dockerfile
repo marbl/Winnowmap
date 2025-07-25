@@ -18,6 +18,7 @@ FROM debian:stable-slim
 
 RUN apt-get update && apt-get install -y \
     procps \
-    libgomp1
+    libgomp1 \
+    samtools
 
 COPY --from=builder /usr/src/bin/* /usr/local/bin/
