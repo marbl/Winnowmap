@@ -18,7 +18,7 @@
  */
 
 #include "types.H"
-#include "mt19937ar.H"
+#include "math.H"
 
 
 
@@ -90,7 +90,7 @@ main(int argc, char **argv) {
   uint32   limit = (argc > 1) ? strtouint32(argv[1]) : 1;
   uint32   err   = (argc > 1) ? 0                    : 1;
 
-  mtRandom mt;
+  merylutil::mtRandom mt;
 
   for (uint32 ii=0; ii<limit; ii++) {
     uint32 sh1 = (mt.mtRandom32() % 128);

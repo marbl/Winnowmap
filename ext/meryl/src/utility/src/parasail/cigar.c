@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "parasail.h"
-#include "parasail/memory.h"
+#include "memory.h"
 
 #if defined(_MSC_VER)
 #define snprintf _snprintf
@@ -207,7 +207,7 @@ parasail_cigar_t* parasail_result_get_cigar_extra(
         int case_sensitive,
         const char *alphabet_aliases)
 {
-    assert(parasail_result_is_trace(result));
+    PARASAIL_ASSERT(parasail_result_is_trace(result));
 
     if (result->flag & PARASAIL_FLAG_STRIPED || result->flag & PARASAIL_FLAG_SCAN) {
         if (result->flag & PARASAIL_FLAG_BITS_8) {

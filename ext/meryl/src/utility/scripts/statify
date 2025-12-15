@@ -1,0 +1,92 @@
+#!/bin/sh
+#
+#  Copy any shared libraries from system locations to private build/lib.
+#  Code sign the libraries.
+#
+#  Usage: $0 /path/to/build/lib /path/to/build/bin/executable [executable ...]
+#   - assumes first argument ends in "/lib".
+#   - assumes second argument has the same path up to "/bin".
+#
+#
+#  For each library referenced in the input:
+#    If $libname isn't in our private lib/ directory already, copy it
+#    there, fix the ID, then recursively fixlinks() on it (which will also
+#    codesign it).
+#
+#    Update the link to the (now private) library in the input.  This
+#    assumes that the libraries are in path '../lib' relative to the
+#    binary!
+#
+#  Then codesign the input.
+#
+#  The original (python version) supported lines with "=>" and "0x0" in them,
+#  and would just copy these to $libpath without changing the binary.  I'm
+#  not sure what these are and they don't appear in my AppleSilicon-based
+#  testing.
+#
+#  For inputs that are not "Mach-O 64-bit executable arm64", otool reports
+#  (on stdout!)  "<filename>: is not an object file" which is then ignored in
+#  the for loop below, and so we don't bother attempting to filter out
+#  non-binary inputs.
+#
+
+#  Remove the common path components between first and second arg.
+strippath() {
+  lf=$1 ; lp=$( echo "$lf" | cut -d/ -f 1) ; ls=$( echo "$lf" | cut -d/ -f 2- )
+  bf=$2 ; bp=$( echo "$bf" | cut -d/ -f 1) ; bs=$( echo "$bf" | cut -d/ -f 2- )
+
+  while [ x$lp = x$bp ] ; do
+    lf=$ls ; lp=$( echo "$lf" | cut -d/ -f 1) ; ls=$( echo "$lf" | cut -d/ -f 2- )
+    bf=$bs ; bp=$( echo "$bf" | cut -d/ -f 1) ; bs=$( echo "$bf" | cut -d/ -f 2- )
+  done
+
+  echo $bf
+}
+
+fixlinks() {
+  local libpath=$1
+  local binname=$2
+  local bindisp=$( strippath $libpref $2 )
+  local indent=$3
+  local lib=""
+
+  for lib in $( otool -L $binname | grep /opt/homebrew | awk '{ print $1 }' ) ; do
+    local libname=$( basename $lib )
+    local libdisp=$(strippath "$libpref" "$libpath/$libname" )
+
+    printf "%-33s refr %s\n" "$indent $bindisp" "$lib"
+
+    if [ ! -e $libpath/$libname ] ; then
+      printf "%-33s copy %s\n" "$indent   $libdisp" "$lib"
+      cp -p $lib $libpath/$libname   #  The chmod is only so it is easier
+      chmod u+w $libpath/$libname    #  to delete build/.
+
+      printf "%-33s chid\n" "$indent   $libdisp"
+      install_name_tool -id @executable_path/../lib/$libname $libpath/$libname 2>&1 | grep -v 'invalidate the code signature'
+
+      fixlinks $libpath $libpath/$libname "$indent  "
+    fi
+
+    printf "%-33s link %s\n" "$indent $bindisp" "$libpath/$libname"
+    install_name_tool -change $lib @executable_path/../lib/$libname $binname 2>&1 | grep -v 'invalidate the code signature'
+  done
+
+  printf "%-33s sign\n" "$indent $bindisp"
+  codesign -s - -f $binname 2>&1 | grep -v 'replacing existing signature'
+}
+
+#  Main.
+
+if [ $(uname -s) != "Darwin" ] ; then   #  Do nothing if not on Darwin.
+  exit 0
+fi
+
+libpath=$( echo $1 | sed 's!/*$!!' )
+libpref=$( dirname $1 )
+shift
+
+for binname in $@ ; do
+  fixlinks $libpath $binname "s -"
+done
+
+exit 0

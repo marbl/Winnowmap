@@ -16,13 +16,13 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
-#include "sequence.H"
+#include <algorithm>
+
 #include "kmers.H"
-//#include "strings.H"
-//#include "system.H"
+#include "sequence.H"
 
-
+using namespace merylutil;
+using namespace merylutil::kmers::v1;
 
 int
 main(int argc, char **argv) {
@@ -97,7 +97,7 @@ main(int argc, char **argv) {
   //  allocate a gigantic array.  We could just reallocate and copy,
   //  but then we're limited to 1/2 the memory.
 
-  dnaSeqFile   *seqFile  = new dnaSeqFile(sInput, false);
+  dnaSeqFile   *seqFile  = openSequenceFile(sInput);
   dnaSeq       *seq      = new dnaSeq;
   uint64        kmersLen = 0;
   uint64        kmersMax = 0;
@@ -124,7 +124,7 @@ main(int argc, char **argv) {
   fprintf(stderr, "-- Allocating space for %lu kmers (%lu MB).\n", kmersMax, memUsed >> 20);
 
   kmers   = new kmdata [kmersMax];
-  seqFile = new dnaSeqFile(sInput, false);
+  seqFile = openSequenceFile(sInput);
   seq     = new dnaSeq;
 
   fprintf(stderr, "-- Loading kmers.\n");
@@ -166,8 +166,8 @@ main(int argc, char **argv) {
   for (uint32 ii=0; ii<histMax; ii++)
     hist[ii] = 0;
 
-  //LE *M = AS_UTL_openOutputFile(mOutput);
-  FILE *D = AS_UTL_openOutputFile(dOutput);
+  //LE *M = merylutil::openOutputFile(mOutput);
+  FILE *D = merylutil::openOutputFile(dOutput);
 
   fprintf(stderr, "-- Output.\n");
 
@@ -194,17 +194,17 @@ main(int argc, char **argv) {
     jj = jj + 1;
   }
 
-  AS_UTL_closeFile(D);
+  merylutil::closeFile(D);
 
 
   if (hOutput) {
-    FILE *H = AS_UTL_openOutputFile(hOutput);
+    FILE *H = merylutil::openOutputFile(hOutput);
 
     for (uint32 ii=0; ii<=histLen; ii++)
       if (hist[ii] > 0)
         fprintf(H, "%u\t%u\n", ii, hist[ii]);
 
-    AS_UTL_closeFile(H);
+    merylutil::closeFile(H);
   }
 
   //  Cleanup.

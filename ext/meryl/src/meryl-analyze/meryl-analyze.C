@@ -16,11 +16,12 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
-
 #include "kmers.H"
 #include "sequence.H"
 #include "bits.H"
+
+using namespace merylutil;
+using namespace merylutil::kmers::v1;
 
 #define OP_NONE   0
 #define OP_GA     1
@@ -136,7 +137,7 @@ private:
 
 void
 printHist(char* outName, sparseHistogram<uint64,uint32> hist[]) {
-  FILE *F = AS_UTL_openOutputFile(outName);
+  FILE *F = merylutil::openOutputFile(outName);
 
   for (uint32 ll=0; ll<=kmer::merSize(); ll++) {
     if (hist[ll].minValue() <= hist[ll].maxValue()) {

@@ -17,7 +17,8 @@
  */
 
 #include "meryl-lookup.H"
-#include "sweatShop.H"
+
+#include "system.H"
 
 
 class dumpInput {
@@ -241,11 +242,6 @@ processSequence(void *G, void *T, void *S) {
 
 #endif
   }
-
-
-  //  Release the memory use for storing the sequence.
-
-  s->seq.releaseBases();
 }
 
 

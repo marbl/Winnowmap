@@ -18,15 +18,11 @@
 
 #include "meryl.H"
 
-#include "runtime.H"
-#include "strings.H"
-#include "system.H"
-
-
+using namespace merylutil;
 
 int
 main(int argc, char **argv) {
-  merylCommandBuilder  *B = new merylCommandBuilder;
+  merylCommandBuilder  B;  // = new merylCommandBuilder;
 
   argc = AS_configure(argc, argv);
 
@@ -59,24 +55,26 @@ main(int argc, char **argv) {
     //
     //
 
-    B->initialize(argv[arg]);
+    B.initialize(argv[arg]);
 
-    if (B->processOptions() == true)       //  Process and add options to the current command.
+    if (B.processOptions() == true)       //  Process and add options to the current command.
       continue;
 
-    if (B->processOperation() == true)     //  Detect a new operation.
+    if (B.processOperation() == true)     //  Detect a new operation.
       continue;
 
-    if (B->isOutput() == true)             //  Handle 'output' and 'print' flags, and their
+    if (B.isOutput() == true)             //  Handle 'output' and 'print' flags, and their
       continue;                           //  (possibly optional) output path.
-    if (B->isPrinter() == true)
+    if (B.isPrinter() == true)
       continue;
 
-    if (B->isMerylInput() == true)         //  Last, try to make an input.  These must come
+    if (B.isMerylInput() == true)         //  Last, try to make an input.  These must come
       continue;                           //  after 'print' so we can do 'print some.meryl'
-    if (B->isCanuInput(err) == true)       //  detect that as an input.
+    if (B.isCanuInput(err) == true)       //  detect that as an input.
       continue;
-    if (B->isSequenceInput() == true)
+    if (B.isSequenceInput() == true)
+      continue;
+    if (B.isFileInput() == true)
       continue;
 
     //
@@ -88,12 +86,12 @@ main(int argc, char **argv) {
     err.push_back(s);
   }
 
-  B->finalize();   //  Finalize the command tree.
+  B.finalize();   //  Finalize the command tree.
 
   //  If any errors, fail.
 
   if ((argc == 1) ||                //  No commands
-      (B->numRoots() == 0) ||   //  No actions
+      (B.numRoots() == 0) ||   //  No actions
       (err.size() > 0)) {           //  Errors
     fprintf(stderr, "usage: %s ...\n", argv[0]);
     fprintf(stderr, "\n");
@@ -103,9 +101,10 @@ main(int argc, char **argv) {
     fprintf(stderr, "\n");
     fprintf(stderr, "  COMMANDS:\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "    statistics           display total, unique, distnict, present number of the kmers on the screen.  accepts exactly one input.\n");
-    fprintf(stderr, "    histogram            display kmer frequency on the screen as 'frequency<tab>count'.  accepts exactly one input.\n");
-    fprintf(stderr, "    print                display kmers on the screen as 'kmer<tab>count'.  accepts exactly one input.\n");
+    fprintf(stderr, "    statistics           display total, unique, distinct, present number of the kmers of a given database.\n");
+    fprintf(stderr, "    histogram            display kmer frequency ('frequency<tab>count') of a given database.\n");
+    fprintf(stderr, "    print                display kmers ('kmer<tab>count').  accepts exactly one input.\n");
+    fprintf(stderr, "    ploidy               display estimated ploidy of a given database or histogram file.  -VV will output histogram derivative.\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    count                Count the occurrences of canonical kmers in the input.  must have 'output' specified.\n");
     fprintf(stderr, "    count-forward        Count the occurrences of forward kmers in the input.  must have 'output' specified.\n");
@@ -138,7 +137,7 @@ main(int argc, char **argv) {
     fprintf(stderr, "    intersect-max        return kmers that occur in all inputs, set the count to the maximum count.\n");
     fprintf(stderr, "    intersect-sum        return kmers that occur in all inputs, set the count to the sum of the counts.\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "    subtract             return kmers that occur in the first input, subtracting counts from the other inputs\n");
+    fprintf(stderr, "    subtract             return kmers that occur in the first input, substracting counts from the other inputs\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "    difference           return kmers that occur in the first input, but none of the other inputs\n");
     fprintf(stderr, "    symmetric-difference return kmers that occur in exactly one input\n");
@@ -179,7 +178,7 @@ main(int argc, char **argv) {
   }
 
   fprintf(stderr, "\n");
-  fprintf(stderr, "Found %u command tree%s.\n", B->numRoots(), (B->numRoots() == 1) ? "" : "s");
+  fprintf(stderr, "Found %u command tree%s.\n", B.numRoots(), (B.numRoots() == 1) ? "" : "s");
 
   //  opHistogram is limited to showing only histograms already stored in a database.
   //  opHistogram cannot take input from anything but a database.
@@ -191,16 +190,22 @@ main(int argc, char **argv) {
   //
   //  Eventually, maybe, opHistogram will allow input from a kmer stream.
 
-  if (B->getOperation(0)->getOperation() == opHistogram) {
-    B->getOperation(0)->initialize();
-    B->getOperation(0)->reportHistogram();
-    exit(0);
+  if (B.getOperation(0)->getOperation() == opHistogram) {
+    B.getOperation(0)->initialize();
+    B.getOperation(0)->reportHistogram();
+    return 0;
   }
 
-  if (B->getOperation(0)->getOperation() == opStatistics) {
-    B->getOperation(0)->initialize();
-    B->getOperation(0)->reportStatistics();
-    exit(0);
+  if (B.getOperation(0)->getOperation() == opStatistics) {
+    B.getOperation(0)->initialize();
+    B.getOperation(0)->reportStatistics();
+    return 0;
+  }
+
+  if (B.getOperation(0)->getOperation() == opPloidy) {
+    B.getOperation(0)->initialize();
+    B.getOperation(0)->reportPloidy();
+    return 0;
   }
 
   //  Counting operations are a big headache.  They don't fit into the
@@ -212,8 +217,8 @@ main(int argc, char **argv) {
   //  So, we special case them here.  Process in order, counting, writing the
   //  output, and converting to a pass-through operation.
 
-  for (uint32 oo=0; oo<B->numOperations(); oo++) {
-    merylOperation *op = B->getOperation(oo);
+  for (uint32 oo=0; oo<B.numOperations(); oo++) {
+    merylOperation *op = B.getOperation(oo);
 
     if (op->isCounting() == true) {
       op->initialize();
@@ -224,30 +229,30 @@ main(int argc, char **argv) {
   //  Initialize all the root nodes.  This initializes constants and,
   //  importantly, opens outputs.
 
-  for (uint32 rr=0; rr<B->numRoots(); rr++)
-    B->getRoot(rr)->initialize(true);
+  for (uint32 rr=0; rr<B.numRoots(); rr++)
+    B.getRoot(rr)->initialize(true);
 
   //  Initialize nodes for all the threads.  All the root nodes need to be
   //  initialized before we spawn, so we get thresholds set correctly.
 
-  B->spawnThreads();
+  B.spawnThreads();
 
   //  Process each file, in parallel.  Just keep getting the next mer and let
   //  each op do their work.
 
-  for (uint32 rr=0; rr<B->numRoots(); rr++) {
-    merylOperation *root = B->getRoot(rr);
+  for (uint32 rr=0; rr<B.numRoots(); rr++) {
+    merylOperation *root = B.getRoot(rr);
 
     if (root->getOperation() == opPassThrough)
       continue;
 
     fprintf(stderr, "\n");
     fprintf(stderr, "PROCESSING TREE #%u using %u thread%s.\n", rr+1, getMaxThreadsAllowed(), getMaxThreadsAllowed() == 1 ? "" : "s");
-    B->printTree(root, 2);
+    B.printTree(root, 2);
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (uint32 ff=0; ff<64; ff++) {
-      merylOperation *op = B->getRoot(rr, ff);
+      merylOperation *op = B.getRoot(rr, ff);
 
       if (op->initialize() == true)
         while (op->nextMer() == true)
@@ -262,7 +267,7 @@ main(int argc, char **argv) {
   fprintf(stderr, "\n");
   fprintf(stderr, "Cleaning up.\n");
 
-  delete B;
+  //delete B;
 
   fprintf(stderr, "\n");
   fprintf(stderr, "Bye.\n");

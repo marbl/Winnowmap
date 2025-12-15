@@ -60,7 +60,7 @@ openPerThreadOutput(FILE *prFile, char *prName, uint32 fileNum) {
   else
     snprintf(N, FILENAME_MAX, "%s%0*d%s", pre, len, fileNum, suf);
 
-  return(AS_UTL_openOutputFile(N));
+  return(merylutil::openOutputFile(N));
 }
 
 
@@ -110,7 +110,7 @@ merylOperation::~merylOperation() {
   assert(_writer == NULL);
 
   if (_printer != stdout)
-    AS_UTL_closeFile(_printer);
+    merylutil::closeFile(_printer);
 
   delete [] _printerName;
 
@@ -197,7 +197,7 @@ merylOperation::addInputFromSeq(char *sqName, bool doCompression) {
     fprintf(stderr, "Adding input from file '%s' to operation '%s'\n",
             sqName, toString(_operation));
 
-  dnaSeqFile *sq = new dnaSeqFile(sqName);
+  dnaSeqFile *sq = openSequenceFile(sqName);
 
   _inputs.push_back(new merylInput(sq->filename(), sq, doCompression));
 
@@ -207,7 +207,6 @@ merylOperation::addInputFromSeq(char *sqName, bool doCompression) {
   if (isCounting() == false)
     fprintf(stderr, "ERROR: operation '%s' cannot use sequence files as inputs.\n", toString(_operation)), exit(1);
 }
-
 
 
 void
@@ -229,6 +228,20 @@ merylOperation::addInputFromCanu(char *sqName, uint32 segment, uint32 segmentMax
     fprintf(stderr, "ERROR: operation '%s' cannot use sqStore as inputs.\n", toString(_operation)), exit(1);
 #else
 #endif
+}
+
+
+void
+merylOperation::addInputFromFile(char *fiName) {
+
+  if (_verbosity >= sayConstruction)
+    fprintf(stderr, "Adding input from file '%s' to operation '%s'\n",
+            fiName, toString(_operation));
+
+  _inputs.push_back(new merylInput(fiName));
+
+  if (_operation != opPloidy)
+    fprintf(stderr, "ERROR: operation '%s' cannot use text files as inputs.\n", toString(_operation)), exit(1);
 }
 
 
@@ -335,6 +348,8 @@ toString(merylOp op) {
 
     case opHistogram:            return("opHistogram");            break;
     case opStatistics:           return("opStatistics");           break;
+
+    case opPloidy:               return("opPloidy");               break;
 
     case opCompare:              return("opCompare");              break;
 

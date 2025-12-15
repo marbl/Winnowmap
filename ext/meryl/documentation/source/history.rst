@@ -1,7 +1,7 @@
 .. _history:
 
-Software Background
-====================
+History
+=======
 
 Meryl was first imagined in late-2000/early-2001/mid-2001 while BPW as at `Celera Genomics
 <https://en.wikipedia.org/wiki/Celera_Corporation>`_.

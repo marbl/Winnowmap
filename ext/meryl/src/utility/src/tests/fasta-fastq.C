@@ -20,6 +20,8 @@
 #include "sequence.H"
 #include "files.H"
 
+//using namespace merylutil;
+
 uint32  lengths1[] = {
   12, 100,
   12, 100,
@@ -59,12 +61,12 @@ checkLineLength(char const *filename, uint32 *linelength) {
   char    *L    = nullptr;
   bool     pass = true;
 
-  FILE *F = AS_UTL_openInputFile(filename);
+  FILE *F = merylutil::openInputFile(filename);
 
   if (linelength == nullptr)
     fprintf(stdout, "uint32 *lengths = {\n");
 
-  while (AS_UTL_readLine(L, Llen, Lmax, F) == true) {
+  while (merylutil::readLine(L, Llen, Lmax, F) == true) {
     if (linelength == nullptr)
       fprintf(stdout, "%u,\n", Llen);
     else
@@ -73,7 +75,7 @@ checkLineLength(char const *filename, uint32 *linelength) {
     Lnum++;
   }
 
-  AS_UTL_closeFile(F);
+  merylutil::closeFile(F);
 
   delete [] L;
 
@@ -106,45 +108,45 @@ main(int argc, char **argv) {
   }
 
   {
-    FILE *F = AS_UTL_openOutputFile("fasta-fastq.1.test");
+    FILE *F = merylutil::openOutputFile("fasta-fastq.1.test");
 
-    outputFASTA(F, seq, 100,   0, "name%s%d.", "_one_", 1);
-    outputFASTA(F, seq, 100, 100, "name%s%d.", "_two_", 2);
-    outputFASTA(F, seq, 100,  10, "name%s%d.", "_thr_", 3);
-    outputFASTA(F, seq, 100,   9, "name%s%d.", "_for_", 4);
-    outputFASTA(F, seq,  10,   1, "name%s%d.", "_fiv_", 5);
-    outputFASTA(F, seq,  10,   0, "name%s%d.", "_six_", 6);
-
-    fprintf(F, "\n");
-
-    outputFASTQ(F, seq,    qvs,    100, "name%s%d.", "_oneqvs_", 1);
-    outputFASTQ(F, seq+31, qvs+31, 100, "name%s%d.", "_twoqvs_", 2);
-    outputFASTQ(F, seq+10, qvs+10, 100, "name%s%d.", "_thrqvs_", 3);
-    outputFASTQ(F, seq+29, qvs+29, 100, "name%s%d.", "_forqvs_", 4);
+    merylutil::outputFASTA(F, seq, 100,   0, "name%s%d.", "_one_", 1);
+    merylutil::outputFASTA(F, seq, 100, 100, "name%s%d.", "_two_", 2);
+    merylutil::outputFASTA(F, seq, 100,  10, "name%s%d.", "_thr_", 3);
+    merylutil::outputFASTA(F, seq, 100,   9, "name%s%d.", "_for_", 4);
+    merylutil::outputFASTA(F, seq,  10,   1, "name%s%d.", "_fiv_", 5);
+    merylutil::outputFASTA(F, seq,  10,   0, "name%s%d.", "_six_", 6);
 
     fprintf(F, "\n");
 
-    outputFASTQ(F, seq,    qlt,    100, "name%s%d.", "_oneqlt_", 1);
-    outputFASTQ(F, seq+31, qlt+31, 100, "name%s%d.", "_twoqlt_", 2);
-    outputFASTQ(F, seq+10, qlt+10, 100, "name%s%d.", "_thrqlt_", 3);
-    outputFASTQ(F, seq+29, qlt+29, 100, "name%s%d.", "_forqlt_", 4);
+    merylutil::outputFASTQ(F, seq,    qvs,    100, "name%s%d.", "_oneqvs_", 1);
+    merylutil::outputFASTQ(F, seq+31, qvs+31, 100, "name%s%d.", "_twoqvs_", 2);
+    merylutil::outputFASTQ(F, seq+10, qvs+10, 100, "name%s%d.", "_thrqvs_", 3);
+    merylutil::outputFASTQ(F, seq+29, qvs+29, 100, "name%s%d.", "_forqvs_", 4);
 
-    AS_UTL_closeFile(F, "fasta-fastq.1.test");
+    fprintf(F, "\n");
+
+    merylutil::outputFASTQ(F, seq,    qlt,    100, "name%s%d.", "_oneqlt_", 1);
+    merylutil::outputFASTQ(F, seq+31, qlt+31, 100, "name%s%d.", "_twoqlt_", 2);
+    merylutil::outputFASTQ(F, seq+10, qlt+10, 100, "name%s%d.", "_thrqlt_", 3);
+    merylutil::outputFASTQ(F, seq+29, qlt+29, 100, "name%s%d.", "_forqlt_", 4);
+
+    merylutil::closeFile(F, "fasta-fastq.1.test");
 
     t1 = checkLineLength("fasta-fastq.1.test", lengths1);
   }
 
   {
-    FILE *F = AS_UTL_openOutputFile("fasta-fastq.2.test");
-    outputSequence(F, "1", seq, qvs, 10, false, false, false, 0);
-    outputSequence(F, "2", seq, qvs, 10, false, false,  true, 0);
-    outputSequence(F, "3", seq, qvs, 10, false,  true, false, 0);
-    outputSequence(F, "4", seq, qvs, 10, false,  true,  true, 0);
-    outputSequence(F, "5", seq, qvs, 10,  true, false, false, 0);
-    outputSequence(F, "6", seq, qvs, 10,  true, false,  true, 0);
-    outputSequence(F, "7", seq, qvs, 10,  true,  true, false, 0);
-    outputSequence(F, "8", seq, qvs, 10,  true,  true,  true, 0);
-    AS_UTL_closeFile(F, "fasta-fastq.2.test");
+    FILE *F = merylutil::openOutputFile("fasta-fastq.2.test");
+    merylutil::outputSequence(F, "1", seq, qvs, 10, false, false, false, 0);
+    merylutil::outputSequence(F, "2", seq, qvs, 10, false, false,  true, 0);
+    merylutil::outputSequence(F, "3", seq, qvs, 10, false,  true, false, 0);
+    merylutil::outputSequence(F, "4", seq, qvs, 10, false,  true,  true, 0);
+    merylutil::outputSequence(F, "5", seq, qvs, 10,  true, false, false, 0);
+    merylutil::outputSequence(F, "6", seq, qvs, 10,  true, false,  true, 0);
+    merylutil::outputSequence(F, "7", seq, qvs, 10,  true,  true, false, 0);
+    merylutil::outputSequence(F, "8", seq, qvs, 10,  true,  true,  true, 0);
+    merylutil::closeFile(F, "fasta-fastq.2.test");
 
     t2 = checkLineLength("fasta-fastq.2.test", lengths2);
   }
@@ -158,8 +160,8 @@ main(int argc, char **argv) {
   if ((t1 == true) &&
       (t2 == true)) {
     fprintf(stderr, "Success!\n");
-    AS_UTL_unlink("fasta-fastq.1.test");
-    AS_UTL_unlink("fasta-fastq.2.test");
+    merylutil::unlink("fasta-fastq.1.test");
+    merylutil::unlink("fasta-fastq.2.test");
     return(0);
   }
 

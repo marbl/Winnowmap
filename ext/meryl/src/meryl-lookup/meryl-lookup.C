@@ -112,12 +112,12 @@ lookupGlobal::openInputs(void) {
 
   if (seqName1) {
     fprintf(stderr, "  '%s'\n", seqName1);
-    seqFile1 = new dnaSeqFile(seqName1);
+    seqFile1 = openSequenceFile(seqName1);
   }
 
   if (seqName2) {
     fprintf(stderr, "  '%s'\n", seqName2);
-    seqFile2 = new dnaSeqFile(seqName2);
+    seqFile2 = openSequenceFile(seqName2);
   }
 }
 

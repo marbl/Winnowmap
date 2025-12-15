@@ -95,3 +95,63 @@ merylOperation::reportStatistics(void) {
   assert(sDistinct == stats->numDistinct());
   assert(sTotal    == stats->numTotal());
 }
+
+
+
+
+
+
+void
+merylOperation::reportPloidy(void) {
+
+  if (_inputs.size() > 1)
+    fprintf(stderr, "ERROR: told to dump ploidy for more than one input!\n"), exit(1);
+
+  if (_inputs[0]->_operation)
+    fprintf(stderr, "ERROR: told to dump ploidy from input '%s'!\n", _inputs[0]->_name), exit(1);
+
+  if (_inputs[0]->_sequence)
+    fprintf(stderr, "ERROR: told to dump ploidy from input '%s'!\n", _inputs[0]->_name), exit(1);
+
+  merylHistogram  *stats        = nullptr;
+  merylHistogram  *statsPrivate = nullptr;
+  bool             debugPloidy  = (_verbosity >= sayDetails);
+
+  if      (_inputs[0]->isFromDatabase() == true) {
+    stats = _inputs[0]->_stream->stats();
+    stats->computePloidyPeaks(debugPloidy);
+  }
+  else if (_inputs[0]->isFromFile() == true) {
+    stats = statsPrivate = new merylHistogram();
+
+    stats->load(_inputs[0]->_filename);
+    stats->computePloidyPeaks(debugPloidy);
+  }
+  else {
+    fprintf(stderr, "'ploidy' can't run from input type '%s'.\n", _inputs[0]->inputType()), exit(1);
+  }
+
+  double no = stats->getNoiseTrough();
+
+  double c1 = stats->getCoverage(1);
+  double c2 = stats->getCoverage(2);
+  double c3 = stats->getCoverage(3);
+  double c4 = stats->getCoverage(4);
+
+  double p1 = stats->getDepth(1);
+  double p2 = stats->getDepth(2);
+  double p3 = stats->getDepth(3);
+  double p4 = stats->getDepth(4);
+
+  fprintf(stderr, "\n");
+  fprintf(stderr, "Noise/genomic trough: %6.3f\n", no);
+  fprintf(stderr, "%4.2fx coverage peak:   %6.3f\n", c1, p1);
+  fprintf(stderr, "%4.2fx coverage peak:   %6.3f\n", c2, p2);
+  fprintf(stderr, "%4.2fx coverage peak:   %6.3f\n", c3, p3);
+  fprintf(stderr, "%4.2fx coverage peak:   %6.3f\n", c4, p4);
+
+  if (isatty(fileno(stdout)) == 0)
+    fprintf(stdout, "noise-trough\t%.3f\tploidy-peaks\t%.3f\t%.3f\t%.3f\t%.3f\n", no, p1, p2, p3, p4);
+
+  delete statsPrivate;
+}

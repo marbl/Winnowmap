@@ -19,6 +19,8 @@
 
 #include "files.H"
 
+using merylutil::compressedFileReader;
+
 int32
 main(int32 argc, char **argv) {
   uint32   lineMax = 0;
@@ -33,7 +35,7 @@ main(int32 argc, char **argv) {
 
   compressedFileReader  *in = new compressedFileReader(argv[1]);
 
-  while (AS_UTL_readLine(line, lineLen, lineMax, in->file())) {
+  while (merylutil::readLine(line, lineLen, lineMax, in->file())) {
     nLines++;
   }
 

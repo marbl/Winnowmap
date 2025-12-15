@@ -19,8 +19,11 @@
 
 #include "bits.H"
 #include "strings.H"
-#include "mt19937ar.H"
+#include "math.H"
+
 #include "bitsTest-MaskData.H"
+
+using namespace merylutil;
 
 #include <algorithm>
 
@@ -126,8 +129,8 @@ testSaveClear(bool verbose) {
   for (uint32 ii=0; ii<65; ii++) {
     if (verbose)
       fprintf(stderr, "%2u clearLeft %s clearRight %s\n", ii,
-              displayWord(clearLeftBits (bb, ii), b1),
-              displayWord(clearRightBits(bb, ii), b2));
+              toBin(clearLeftBits (bb, ii), b1),
+              toBin(clearRightBits(bb, ii), b2));
 
     assert(clearLeftBits (bb, ii) == rr);   rr >>= 1;
     assert(clearRightBits(bb, ii) == rl);   rl <<= 1;
@@ -142,8 +145,8 @@ testSaveClear(bool verbose) {
   for (uint32 ii=0; ii<65; ii++) {
     if (verbose)
       fprintf(stderr, "%2u  saveLeft %s  saveRight %s\n", ii,
-              displayWord(saveLeftBits (bb, ii), b1),
-              displayWord(saveRightBits(bb, ii), b2));
+              toBin(saveLeftBits (bb, ii), b1),
+              toBin(saveRightBits(bb, ii), b2));
 
     assert(saveLeftBits (bb, ii) == ~rr);   rr >>= 1;
     assert(saveRightBits(bb, ii) == ~rl);   rl <<= 1;
@@ -158,8 +161,8 @@ testSaveClear(bool verbose) {
   for (uint32 ii=0; ii<65; ii++) {
     if (verbose)
       fprintf(stderr, "%2u  saveMid  %s clearMid   %s\n", ii,
-              displayWord(saveMiddleBits (bb, ii, 10), b1),
-              displayWord(clearMiddleBits(bb, ii, 10), b2));
+              toBin(saveMiddleBits (bb, ii, 10), b1),
+              toBin(clearMiddleBits(bb, ii, 10), b2));
 
     assert(saveMiddleBits (bb, ii, 10) ==  rr);
     assert(clearMiddleBits(bb, ii, 10) == ~rr);
@@ -179,8 +182,8 @@ testSaveClear(bool verbose) {
   for (uint32 ii=0; ii<65; ii++) {
     if (verbose)
       fprintf(stderr, "%2u  saveMid  %s clearMid   %s\n", ii,
-              displayWord(saveMiddleBits (bb, 10, ii), b1),
-              displayWord(clearMiddleBits(bb, 10, ii), b2));
+              toBin(saveMiddleBits (bb, 10, ii), b1),
+              toBin(clearMiddleBits(bb, 10, ii), b2));
 
     assert(saveMiddleBits (bb, 10, ii) ==  rr);
     assert(clearMiddleBits(bb, 10, ii) == ~rr);

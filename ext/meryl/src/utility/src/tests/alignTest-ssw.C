@@ -21,10 +21,11 @@
 #include "types.H"
 #include "files.H"
 #include "sequence.H"
+#include "align.H"
 
-#include "align-ssw.H"
-#include "align-ssw-driver.H"
+using namespace merylutil;
 
+#ifdef SSW_H
 
 void
 native_interface(char *seqA,
@@ -110,6 +111,7 @@ native_interface(char *seqA,
   fprintf(stdout, "\n");
 }
 
+#endif  //  SSW_H
 
 
 
@@ -166,17 +168,14 @@ main(int argc, char **argv) {
     exit(1);
   }
 
-
-
+#ifdef SSW_H
   sswLib  *ssw = new sswLib(1, -2, -2, -2);
 
   ssw->align(seqA, strlen(seqA),
              seqB, strlen(seqB));
 
-
   delete ssw;
+#endif
+
   return(0);
 }
-
-
-

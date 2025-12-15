@@ -17,7 +17,6 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "logging.H"
 #include "system.H"
 
 //  These are expected to be global variables in whatever complicated program

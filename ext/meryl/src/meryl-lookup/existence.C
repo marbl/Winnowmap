@@ -17,7 +17,8 @@
  */
 
 #include "meryl-lookup.H"
-#include "sweatShop.H"
+
+#include "system.H"
 
 
 
@@ -82,10 +83,6 @@ processSequence(void *G, void *T, void *S) {
         s->nFound[dd]++;
     }
   }
-
-  //  Release the memory use for storing the sequence.
-
-  s->seq.releaseBases();
 }
 
 

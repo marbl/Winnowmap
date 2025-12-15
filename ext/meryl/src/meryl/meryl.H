@@ -19,8 +19,6 @@
 #ifndef MERYL_H
 #define MERYL_H
 
-#include "runtime.H"
-
 #include "merylInput.H"
 #include "merylOp.H"
 #include "merylCountArray.H"
@@ -47,6 +45,7 @@ public:
   bool    isMerylInput(void);
   bool    isCanuInput(std::vector<char *> &err);
   bool    isSequenceInput(void);
+  bool    isFileInput(void);
 
   void    finalize(void);
   void    spawnThreads(void);

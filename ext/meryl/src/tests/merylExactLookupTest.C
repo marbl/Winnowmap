@@ -16,13 +16,12 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
-
 #include "kmers.H"
 #include "sequence.H"
 #include "bits.H"
 
-
+using namespace merylutil;
+using namespace merylutil::kmers::v1;
 
 void
 loadLookup(char const         *inputDBname,
@@ -156,7 +155,7 @@ main(int argc, char **argv) {
   fprintf(stderr, "==  Stream kmers from '%s'.\n", inputSeqName);
   fprintf(stderr, "==\n");
 
-  dnaSeqFile  *seqFile    = new dnaSeqFile(inputSeqName);
+  dnaSeqFile  *seqFile    = openSequenceFile(inputSeqName);
 
   dnaSeq   seq;
   char     fString[64];

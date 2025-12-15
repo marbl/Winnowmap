@@ -21,9 +21,9 @@
 #include "types.H"
 #include "files.H"
 #include "sequence.H"
+#include "align.H"
 
-#include "align-ksw2-driver.H"
-
+using namespace merylutil;
 
 
 #if 0
@@ -80,13 +80,13 @@ main(int argc, char **argv) {
     }
 
     if      (strcmp(argv[arg], "-A") == 0) {
-      fileA = new dnaSeqFile(argv[++arg]);
+      fileA = openSequenceFile(argv[++arg]);
       fileA->loadSequence(dseqA);
       seqA = dseqA.bases();
     }
 
     else if (strcmp(argv[arg], "-B") == 0) {
-      fileB = new dnaSeqFile(argv[++arg]);
+      fileB = openSequenceFile(argv[++arg]);
       fileB->loadSequence(dseqB);
       seqB = dseqB.bases();
     }

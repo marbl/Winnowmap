@@ -17,10 +17,12 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
+#include "system.H"
+#include "math.H"
 #include "intervals.H"
 
-#include "mt19937ar.H"
+using merylutil::intervals;
+using merylutil::intervalsDepth;
 
 void
 boringTest(void) {
@@ -99,7 +101,7 @@ invertTest(void) {
 
 void
 expensiveTest(uint32 seed) {
-  mtRandom  mt(seed);
+  merylutil::mtRandom  mt(seed);
 
   //  About 6.5 minutes per million, so this should be about an hour.
   uint32  iterMax = 935000;

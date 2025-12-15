@@ -19,9 +19,11 @@
 #ifndef MERYLINPUT_H
 #define MERYLINPUT_H
 
-#include "meryl.H"
-#include "kmers.H"
 #include "sequence.H"
+#include "kmers.H"
+
+using namespace merylutil;
+using namespace merylutil::kmers::v1;
 
 #ifdef CANU                   //  If we're building under
 #include "sqStore.H"          //  Canu, include support
@@ -39,6 +41,7 @@ public:
   merylInput(const char *n, merylFileReader *s, uint32 fileNum=UINT32_MAX);
   merylInput(const char *n, dnaSeqFile *f, bool doCompression);
   merylInput(const char *n, sqStore *s, uint32 segment, uint32 segmentMax);
+  merylInput(const char *n);
   ~merylInput();
 
   char const *inputType(void) {
@@ -46,6 +49,7 @@ public:
     if (_stream)      return("meryl-database");
     if (_sequence)    return("sequence-file");
     if (_store)       return("canu-seqStore");
+    if (_filename)    return("text-file");
 
     return("invalid-input");
   };
@@ -69,39 +73,43 @@ public:
   bool   isFromDatabase(void)     { return(_stream    != NULL); };
   bool   isFromSequence(void)     { return(_sequence  != NULL); };
   bool   isFromStore(void)        { return(_store     != NULL); };
+  bool   isFromFile(void)         { return(_filename  != NULL); };
 
   bool   isMultiSet(void)         { return(_isMultiSet);        };
 
-  bool   isCompressedFile(void)   { return((_sequence != NULL) &&
+  bool   isCompressed(void)       { return((_sequence != NULL) &&
                                            (_sequence->isCompressed())); };
 
-  merylOperation           *_operation;
-  merylFileReader          *_stream;
-  dnaSeqFile               *_sequence;
-  sqStore                  *_store;
+public:
+  char                      _name[FILENAME_MAX+1] = {0};
 
-  char                      _name[FILENAME_MAX+1];
-  bool                      _isMultiSet;
+  merylOperation           *_operation = nullptr;
+  merylFileReader          *_stream    = nullptr;
+  dnaSeqFile               *_sequence  = nullptr;
+  sqStore                  *_store     = nullptr;
+  const char               *_filename  = nullptr;
+
+  bool                      _isMultiSet = false;
 
   //  For _operation and _stream, a copy of the 'active' kmer
 
   kmer                      _kmer;
-  kmvalu                    _value;
-  bool                      _valid;
+  kmvalu                    _value  = 0;
+  bool                      _valid  = false;
 
   //  For _store, the position we're at in the store.
 
-  uint32                    _sqBgn;
-  uint32                    _sqEnd;
+  uint32                    _sqBgn = 0;
+  uint32                    _sqEnd = 0;
 
-  sqRead                   *_read;
-  uint32                    _readID;
-  uint32                    _readPos;
+  sqRead                   *_read    = nullptr;
+  uint32                    _readID  = 0;
+  uint32                    _readPos = uint32max;
 
   //  For homopoly compression, a flag, and the last base read.
 
-  bool                      _homopolyCompress;
-  char                      _lastByte;
+  bool                      _homopolyCompress = false;
+  char                      _lastByte = 0;
 };
 
 #endif  //  MERYLINPUT_H

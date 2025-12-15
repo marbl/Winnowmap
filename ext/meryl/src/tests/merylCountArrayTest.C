@@ -18,7 +18,7 @@
 
 #include "meryl.H"
 #include "strings.H"
-#include "mt19937ar.H"
+#include "math.H"
 
 mtRandom  *mt = NULL;
 

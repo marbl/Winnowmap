@@ -17,11 +17,9 @@
  */
 
 #include "meryl.H"
-
-#include "runtime.H"
 #include "strings.H"
-#include "system.H"
 
+using namespace merylutil;
 
 
 //  In meryOp-count.C
@@ -70,7 +68,8 @@ merylCommandBuilder::~merylCommandBuilder() {
     uint32  rr = _opRoot[ii];
 
     for (uint32 tt=0; tt<64; tt++)   //  Destroy threads first.
-      delete _thList[tt][rr];
+      if (_thList[tt])               //  thList[tt] doesn't exist
+        delete _thList[tt][rr];      //  if we exit early!
 
     delete _opList[rr];              //  Then destroy the master.
   }
@@ -380,6 +379,9 @@ merylCommandBuilder::processOperation(void) {
   else if (0 == strcmp(_optString, "histogram"))              non = opHistogram;
   else if (0 == strcmp(_optString, "statistics"))             non = opStatistics;
 
+  else if (0 == strcmp(_optString, "noise"))                  non = opPloidy;
+  else if (0 == strcmp(_optString, "ploidy"))                 non = opPloidy;
+
   else if (0 == strcmp(_optString, "compare"))                non = opCompare;
 
   else return(false);   //  optString is not an operation.
@@ -538,13 +540,27 @@ merylCommandBuilder::isSequenceInput(void) {
   if (fileExists(_inoutName) == false)
     return(false);
 
-  _opStack.top()->addInputFromSeq(_inoutName, _doCompression);
+  if (_opStack.top()->isCounting() == false)
+    return false;
 
-  _doCompression = false;
+  _opStack.top()->addInputFromSeq(_inoutName, _doCompression);
 
   return(true);
 }
 
+bool
+merylCommandBuilder::isFileInput(void) {
+
+  if (fileExists(_inoutName) == false)
+    return(false);
+
+  if (_opStack.top()->getOperation() != opPloidy)
+    return false;
+
+  _opStack.top()->addInputFromFile(_inoutName);
+
+  return true;
+}
 
 
 

@@ -17,10 +17,10 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "stddev.H"
-#include "mt19937ar.H"
+#include "math.H"
 
-//  g++ -Wall -o stddevTest -I. -I.. stddevTest.C
+using merylutil::stdDev;
+using merylutil::histogramStatistics;
 
 void
 testInsert(void) {
@@ -104,7 +104,7 @@ testRemove(void) {
 void
 testBig(uint32 nSamples) {
   histogramStatistics   hist;
-  mtRandom              mt(10 + nSamples);
+  merylutil::mtRandom   mt(10 + nSamples);
 
   fprintf(stderr, "\n");
   fprintf(stderr, "testBig for nSamples %u\n", nSamples);

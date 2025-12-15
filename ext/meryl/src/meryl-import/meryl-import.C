@@ -16,8 +16,6 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
-
 #include "kmers.H"
 #include "sequence.H"
 #include "strings.H"
@@ -25,6 +23,8 @@
 
 #include "merylCountArray.H"
 
+using namespace merylutil;
+using namespace merylutil::kmers::v1;
 
 int
 main(int argc, char **argv) {
@@ -148,7 +148,7 @@ main(int argc, char **argv) {
 
   //  Open the input kmer file, allocate space for reading kmer lines.
 
-  FILE         *K    = AS_UTL_openInputFile(inputName);
+  FILE         *K    = merylutil::openInputFile(inputName);
   uint32        Llen = 0;
   uint32        Lmax = 1023;
   char         *L    = new char [Lmax + 1];
@@ -174,7 +174,7 @@ main(int argc, char **argv) {
 
   uint64  persistentValue = 1;
 
-  while (AS_UTL_readLine(L, Llen, Lmax, K) == true) {
+  while (merylutil::readLine(L, Llen, Lmax, K) == true) {
     W.split(L);
 
     if (W.numWords() == 0)

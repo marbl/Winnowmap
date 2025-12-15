@@ -107,7 +107,7 @@ static inline parasail_cigar_t* CONCAT(NAME, T) (
     if (NULL != alphabet_aliases_) {
         size_t i;
         aliases_size = strlen(alphabet_aliases_);
-        assert(aliases_size % 2 == 0 && aliases_size < 256); // even number of characters in alias
+        PARASAIL_ASSERT(aliases_size % 2 == 0 && aliases_size < 256); // even number of characters in alias
         for (i=0; i<aliases_size; ++i) {
             alphabet_aliases[i] = case_sensitive ? alphabet_aliases_[i] :
                                                    toupper(alphabet_aliases_[i]);
@@ -142,7 +142,6 @@ static inline parasail_cigar_t* CONCAT(NAME, T) (
     }
     while (i >= 0 || j >= 0) {
         LOC
-        /*assert(i >= 0 && j >= 0);*/
         if (i < 0) {
             if (0 == c_ins) {
                 WRITE_ANY;
@@ -168,7 +167,7 @@ static inline parasail_cigar_t* CONCAT(NAME, T) (
                 char a = case_sensitive ? seqA[i] : toupper(seqA[i]);
                 char b = case_sensitive ? seqB[j] : toupper(seqB[j]);
                 int matches = (a == b);
-                if (NULL != alphabet_aliases) {
+                if (NULL != alphabet_aliases_) {
                     size_t i;
                     for (i=0; i<aliases_size; i+=1) {
                         if (alphabet_aliases[i] == a) {

@@ -1,0 +1,2 @@
+#define HTS_VERSION_TEXT "1.17-19-g07638e1-dirty"
+#define HTSCODECS_VERSION_TEXT "1.4.0-2-gd4aed58"

@@ -1,15 +1,33 @@
 
+/******************************************************************************
+ *
+ *  This file is part of meryl-utility, a collection of miscellaneous code
+ *  used by Meryl, Canu and others.
+ *
+ *  This software is based on:
+ *    'Canu' v2.0              (https://github.com/marbl/canu)
+ *  which is based on:
+ *    'Celera Assembler' r4587 (http://wgs-assembler.sourceforge.net)
+ *    the 'kmer package' r1994 (http://kmer.sourceforge.net)
+ *
+ *  Except as indicated otherwise, this is a 'United States Government Work',
+ *  and is released in the public domain.
+ *
+ *  File 'README.licenses' in the root directory of this distribution
+ *  contains full conditions and disclaimers.
+ */
 
 #include "system.H"
 #include "types.H"
 #include "files.H"
 #include "sequence.H"
 
-#include "align-parasail-driver.H"
+#include "align.H"
 
-#include "parasail.h"
+#include "parasail/parasail.h"
 #include "parasail/cpuid.h"
 
+using namespace merylutil;
 
 
 void
@@ -29,7 +47,7 @@ checkEncodeDecodeBase(void) {
   //fprintf(stderr, "T -> %2u -> %c\n", encode2bitBase('T'), decode2bitBase(2));
   assert(encode2bitBase('T') == 2);
   assert(decode2bitBase(2) == 'T');
-};
+}
 
 
 
@@ -170,21 +188,25 @@ main(int argc, char **argv) {
     }
 
     else if (strcmp(argv[arg], "-A") == 0) {
-      dnaSeqFile  fileA(argv[++arg]);
+      dnaSeqFile  *fileA = openSequenceFile(argv[++arg]);
 
-      fileA.loadSequence(dseqA);
+      fileA->loadSequence(dseqA);
 
       seqA = dseqA.bases();
       lenA = strlen(seqA);
+
+      delete fileA;
     }
 
     else if (strcmp(argv[arg], "-B") == 0) {
-      dnaSeqFile  fileB(argv[++arg]);
+      dnaSeqFile *fileB = openSequenceFile(argv[++arg]);
 
-      fileB.loadSequence(dseqB);
+      fileB->loadSequence(dseqB);
 
       seqB = dseqB.bases();
       lenB = strlen(seqB);
+
+      delete fileB;
     }
 
     else if (strcmp(argv[arg], "-C") == 0) {

@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include "parasail.h"
-#include "parasail/memory.h"
+#include "memory.h"
 
 #include "sg_helper.h"
 
@@ -29,33 +29,87 @@
 #endif
 
 parasail_result_t* FNAME(
-        const char * const restrict _s1, const int s1Len,
+        const char * const restrict _s1, const int _s1Len,
         const char * const restrict _s2, const int s2Len,
         const int open, const int gap, const parasail_matrix_t *matrix,
         int s1_beg, int s1_end, int s2_beg, int s2_end)
 {
-#ifdef PARASAIL_TABLE
-    parasail_result_t *result = parasail_result_new_table1(s1Len, s2Len);
-#else
-#ifdef PARASAIL_ROWCOL
-    parasail_result_t *result = parasail_result_new_rowcol1(s1Len, s2Len);
-#else
-    parasail_result_t *result = parasail_result_new();
-#endif
-#endif
-    int * const restrict s1 = parasail_memalign_int(16, s1Len);
-    int * const restrict s2 = parasail_memalign_int(16, s2Len);
-    int * const restrict H = parasail_memalign_int(16, s2Len+1);
-    int * const restrict F = parasail_memalign_int(16, s2Len+1);
+    /* declare local variables */
+    parasail_result_t *result = NULL;
+    int * restrict s1 = NULL;
+    int * restrict s2 = NULL;
+    int * restrict H = NULL;
+    int * restrict F = NULL;
+    int s1Len = 0;
     int i = 0;
     int j = 0;
-    int score = NEG_INF_32;
-    int end_query = s1Len;
-    int end_ref = s2Len;
+    int score = 0;
+    int end_query = 0;
+    int end_ref = 0;
 
-    for (i=0; i<s1Len; ++i) {
-        s1[i] = matrix->mapper[(unsigned char)_s1[i]];
+    /* validate inputs */
+    PARASAIL_CHECK_NULL(_s2);
+    PARASAIL_CHECK_GT0(s2Len);
+    PARASAIL_CHECK_GE0(open);
+    PARASAIL_CHECK_GE0(gap);
+    PARASAIL_CHECK_NULL(matrix);
+    if (matrix->type == PARASAIL_MATRIX_TYPE_SQUARE) {
+        PARASAIL_CHECK_NULL(_s1);
+        PARASAIL_CHECK_GT0(_s1Len);
     }
+
+    /* initialize stack variables */
+    s1Len = matrix->type == PARASAIL_MATRIX_TYPE_SQUARE ? _s1Len : matrix->length;
+    i = 0;
+    j = 0;
+    score = NEG_INF_32;
+    end_query = s1Len;
+    end_ref = s2Len;
+
+    /* initialize result */
+#ifdef PARASAIL_TABLE
+    result = parasail_result_new_table1(s1Len, s2Len);
+#else
+#ifdef PARASAIL_ROWCOL
+    result = parasail_result_new_rowcol1(s1Len, s2Len);
+#else
+    result = parasail_result_new();
+#endif
+#endif
+    if (!result) return NULL;
+
+    /* set known flags */
+    result->flag |= PARASAIL_FLAG_SG | PARASAIL_FLAG_NOVEC
+        | PARASAIL_FLAG_BITS_INT | PARASAIL_FLAG_LANES_1;
+    result->flag |= s1_beg ? PARASAIL_FLAG_SG_S1_BEG : 0;
+    result->flag |= s1_end ? PARASAIL_FLAG_SG_S1_END : 0;
+    result->flag |= s2_beg ? PARASAIL_FLAG_SG_S2_BEG : 0;
+    result->flag |= s2_end ? PARASAIL_FLAG_SG_S2_END : 0;
+#ifdef PARASAIL_TABLE
+    result->flag |= PARASAIL_FLAG_TABLE;
+#endif
+#ifdef PARASAIL_ROWCOL
+    result->flag |= PARASAIL_FLAG_ROWCOL;
+#endif
+
+    /* initialize heap variables */
+    s2 = parasail_memalign_int(16, s2Len);
+    H = parasail_memalign_int(16, s2Len+1);
+    F = parasail_memalign_int(16, s2Len+1);
+
+    /* validate heap variables */
+    if (!s2) return NULL;
+    if (!H) return NULL;
+    if (!F) return NULL;
+
+    if (matrix->type == PARASAIL_MATRIX_TYPE_SQUARE) {
+        s1 = parasail_memalign_int(16, s1Len);
+        if (!s1) return NULL;
+        for (i=0; i<s1Len; ++i) {
+            s1[i] = matrix->mapper[(unsigned char)_s1[i]];
+        }
+    }
+
     for (j=0; j<s2Len; ++j) {
         s2[j] = matrix->mapper[(unsigned char)_s2[j]];
     }
@@ -80,7 +134,10 @@ parasail_result_t* FNAME(
 
     /* iter over first sequence */
     for (i=1; i<s1Len; ++i) {
-        const int * const restrict matrow = &matrix->matrix[matrix->size*s1[i-1]];
+        const int * const restrict matrow =
+            matrix->type == PARASAIL_MATRIX_TYPE_SQUARE ?
+            &matrix->matrix[matrix->size*s1[i-1]] :
+            &matrix->matrix[matrix->size*(i-1)];
         /* init first column */
         int NH = H[0];
         int WH = s1_beg ? 0 : (-open - (i-1)*gap);
@@ -119,7 +176,10 @@ parasail_result_t* FNAME(
     }
     {
         /* i == s1Len */
-        const int * const restrict matrow = &matrix->matrix[matrix->size*s1[i-1]];
+        const int * const restrict matrow =
+            matrix->type == PARASAIL_MATRIX_TYPE_SQUARE ?
+            &matrix->matrix[matrix->size*s1[i-1]] :
+            &matrix->matrix[matrix->size*(i-1)];
         /* init first column */
         int NH = H[0];
         int WH = s1_beg ? 0 : -open - (i-1)*gap;
@@ -181,23 +241,13 @@ parasail_result_t* FNAME(
     result->score = score;
     result->end_query = end_query;
     result->end_ref = end_ref;
-    result->flag |= PARASAIL_FLAG_SG | PARASAIL_FLAG_NOVEC
-        | PARASAIL_FLAG_BITS_INT | PARASAIL_FLAG_LANES_1;
-    result->flag |= s1_beg ? PARASAIL_FLAG_SG_S1_BEG : 0;
-    result->flag |= s1_end ? PARASAIL_FLAG_SG_S1_END : 0;
-    result->flag |= s2_beg ? PARASAIL_FLAG_SG_S2_BEG : 0;
-    result->flag |= s2_end ? PARASAIL_FLAG_SG_S2_END : 0;
-#ifdef PARASAIL_TABLE
-    result->flag |= PARASAIL_FLAG_TABLE;
-#endif
-#ifdef PARASAIL_ROWCOL
-    result->flag |= PARASAIL_FLAG_ROWCOL;
-#endif
 
     parasail_free(F);
     parasail_free(H);
     parasail_free(s2);
-    parasail_free(s1);
+    if (matrix->type == PARASAIL_MATRIX_TYPE_SQUARE) {
+        parasail_free(s1);
+    }
 
     return result;
 }

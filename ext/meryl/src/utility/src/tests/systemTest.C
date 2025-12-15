@@ -18,7 +18,6 @@
  */
 
 #include "system.H"
-#include "runtime.H"
 
 int
 main(int argc, char **argv) {

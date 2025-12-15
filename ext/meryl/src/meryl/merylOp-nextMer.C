@@ -231,9 +231,8 @@ merylOperation::doCounting(void) {
 
   _operation = opPassThrough;
 
-  if ((name        == NULL) ||      //  If there is no name, we've
-      (name[0]     == 0) ||         //  been asked to only configure.
-      (_onlyConfig == true))
+  if ((name[0]     == 0) ||         //  If there is no name, we've
+      (_onlyConfig == true))        //  been asked to only configure.
     return;
 
   addInputFromDB(name);
@@ -610,6 +609,9 @@ merylOperation::nextMer(void) {
     case opSymmetricDifference:
       if (_actLen == 1)
         _value = _actCount[0];
+      break;
+
+    case opPloidy:
       break;
 
     case opCompare:

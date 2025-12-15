@@ -1,4 +1,3 @@
-
 OMP_PER_READ_THREADS = 1
 ### use `make OMP_PER_READ_THREADS=N` to override the default 1 OMP thead with N threads
 

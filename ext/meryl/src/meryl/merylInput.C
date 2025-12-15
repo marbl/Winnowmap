@@ -21,84 +21,29 @@
 
 
 merylInput::merylInput(merylOperation *o) {
-  _operation        = o;
-  _stream           = NULL;
-  _sequence         = NULL;
-  _store            = NULL;
-
-  _isMultiSet       = false;  //  set in initialize().
-
-  _value            = 0;
-  _valid            = false;
-
-  _sqBgn            = 0;
-  _sqEnd            = 0;
-
-  _read             = NULL;
-  _readID           = 0;
-  _readPos          = UINT32_MAX;
-
-  _homopolyCompress = false;
-  _lastByte         = 0;
-
-  memset(_name, 0, FILENAME_MAX+1);
+  _operation = o;
   strncpy(_name, toString(_operation->getOperation()), FILENAME_MAX);
 }
 
 
 
 merylInput::merylInput(const char *n, merylFileReader *s, uint32 threadFile) {
-  _operation        = NULL;
-  _stream           = s;
-  _sequence         = NULL;
-  _store            = NULL;
-
-  _isMultiSet       = false;  //  set in initialize().
+  _stream = s;
 
   if (threadFile != UINT32_MAX)
     _stream->enableThreads(threadFile);
 
-  _value            = 0;
-  _valid            = false;
-
-  _sqBgn            = 0;
-  _sqEnd            = 0;
-
-  _read             = NULL;
-  _readID           = 0;
-  _readPos          = UINT32_MAX;
-
-  _homopolyCompress = false;
-  _lastByte         = 0;
-
-  memset(_name, 0, FILENAME_MAX+1);
   strncpy(_name, n, FILENAME_MAX);
 }
 
 
 
 merylInput::merylInput(const char *n, dnaSeqFile *f, bool doCompression) {
-  _operation        = NULL;
-  _stream           = NULL;
-  _sequence         = f;
-  _store            = NULL;
-
-  _isMultiSet       = false;
-
-  _value            = 0;
-  _valid            = true;    //  Trick nextMer into doing something without a valid mer.
-
-  _sqBgn            = 0;
-  _sqEnd            = 0;
-
-  _read             = NULL;
-  _readID           = 0;
-  _readPos          = UINT32_MAX;
+  _sequence = f;
 
   _homopolyCompress = doCompression;
   _lastByte         = 0;
 
-  memset(_name, 0, FILENAME_MAX+1);
   strncpy(_name, n, FILENAME_MAX);
 }
 
@@ -107,41 +52,15 @@ merylInput::merylInput(const char *n, dnaSeqFile *f, bool doCompression) {
 #ifndef CANU
 
 merylInput::merylInput(const char *n, sqStore *s, uint32 segment, uint32 segmentMax) {
-  _operation        = NULL;
-  _stream           = NULL;
-  _sequence         = NULL;
-  _store            = NULL;
-
-  _isMultiSet       = false;
-
-  _value            = 0;
-  _valid            = false;
-
-  _sqBgn            = 0;
-  _sqEnd            = 0;
-
-  _homopolyCompress = false;
-  _lastByte         = 0;
 }
 
 #else
 
 merylInput::merylInput(const char *n, sqStore *s, uint32 segment, uint32 segmentMax) {
-  _operation        = NULL;
-  _stream           = NULL;
-  _sequence         = NULL;
-  _store            = s;
+  _store = s;
 
-  _isMultiSet       = false;
-
-  _value            = 0;
-  _valid            = true;    //  Trick nextMer into doing something without a valid mer.
-
-  _sqBgn            = 1;                                   //  C-style, not the usual
-  _sqEnd            = _store->sqStore_lastReadID() + 1;   //  sqStore semantics!
-
-  _homopolyCompress = false;
-  _lastByte         = 0;
+  _sqBgn = 1;                                   //  C-style, not the usual
+  _sqEnd = _store->sqStore_lastReadID() + 1;   //  sqStore semantics!
 
   if (segmentMax > 1) {
     uint64  nBases = 0;
@@ -177,12 +96,30 @@ merylInput::merylInput(const char *n, sqStore *s, uint32 segment, uint32 segment
   _readID      = _sqBgn - 1;       //  Incremented before loading the first read
   _readPos     = UINT32_MAX;
 
-  memset(_name, 0, FILENAME_MAX+1);
   strncpy(_name, n, FILENAME_MAX);
 }
 
 #endif
 
+
+merylInput::merylInput(const char *n) {
+  _operation        = NULL;
+  _stream           = NULL;
+  _sequence         = NULL;
+  _store            = NULL;
+  _filename         = n;
+
+  _isMultiSet       = false;
+
+  _value            = 0;
+  _valid            = false;
+
+  _sqBgn            = 0;
+  _sqEnd            = 0;
+
+  _homopolyCompress = false;
+  _lastByte         = 0;
+}
 
 
 merylInput::~merylInput() {

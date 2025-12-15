@@ -17,12 +17,12 @@
  *  contains full conditions and disclaimers.
  */
 
-#include "runtime.H"
-#include "intervalList.H"
+#include "system.H"
+#include "math.H"
+#include "intervals.H"
 
-#include "mt19937ar.H"
-
-//  g++ -o intervalListTest -I.. -I. intervalListTest.C
+using merylutil::intervalList;
+using merylutil::intervalDepth;
 
 int
 main(int argc, char **argv) {
@@ -50,7 +50,7 @@ main(int argc, char **argv) {
 
 
   if (1) {
-    mtRandom  mt(strtouint32(argv[1]));
+    merylutil::mtRandom  mt(strtouint32(argv[1]));
 
     //  About 6.5 minutes per million, so this should be about an hour.
     uint32  iterMax = 935000;
