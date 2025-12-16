@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include "bseq.h"
@@ -7,13 +8,14 @@
 #include "mmpriv.h"
 #include "ketopt.h"
 #include <thread>
-#include <sched.h>
 
 #define MM_VERSION "2.03"
 
 #ifdef __linux__
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <sched.h>
+
 void liftrlimit()
 {
 	struct rlimit r;
@@ -21,9 +23,6 @@ void liftrlimit()
 	r.rlim_cur = r.rlim_max;
 	setrlimit(RLIMIT_AS, &r);
 }
-#else
-void liftrlimit() {}
-#endif
 
 int get_cpu_count() {
     cpu_set_t cs;
@@ -33,6 +32,15 @@ int get_cpu_count() {
     }
     return CPU_COUNT(&cs);
 }
+#else
+void liftrlimit() {}
+
+int get_cpu_count() {
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    if (n < 1) n = 1;
+    return (int)n;
+}
+#endif
 
 static ko_longopt_t long_options[] = {
 	{ "bucket-bits",    ko_required_argument, 300 },
